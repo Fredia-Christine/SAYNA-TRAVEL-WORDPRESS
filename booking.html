@@ -1,0 +1,1786 @@
+<!DOCTYPE html>
+<!--
+You know you could be getting paid to poke around in our code?
+We're hiring designers and developers to work in Amsterdam:
+https://careers.booking.com/
+-->
+<!-- mdot-548 -->
+<html lang="fr"
+class="no-js"
+>
+<head>
+<link href="https://cf.bstatic.com" rel="dns-prefetch" crossorigin>
+<link href="https://cf.bstatic.com" rel="dns-prefetch" crossorigin>
+<script type="text/javascript" nonce="le6bD1nif153eMk">
+document.addEventListener('DOMContentLoaded', function () {
+/**
+* provides the current user's cookie consent
+* in order to use it:
+* 1. inline privacy/cookieConsent.js in the page you need to use it.
+* please note that this library relies on window.PCM.isCountryNeedCookieBanner to be initialised
+* before using (calling getValue function) it
+* 2. in your js file:
+*
+* var privacyCookieConsent = B.require('privacyCookieConsent');
+* var consent = privacyCookieConsent.getValue();
+*/
+B.define('privacyCookieConsent', function () {
+var consentGroupIsAllowed = {
+analytical: 'C0002%3A1',
+marketing: 'C0004%3A1'
+};
+var optanonConsentCookieName = 'OptanonConsent';
+var optanonBoxClosedCookieName = 'OptanonAlertBoxClosed';
+var halfOfYearMillis = 180 * 24 * 60 * 60 * 1000;
+function isDefined(value) {
+return value && value !== "undefined";
+}
+function parseConsentToObject(consent) {
+var result = {};
+if (typeof consent === 'string') {
+var parts = consent.split('&');
+parts.forEach(function (part) {
+var keyAndValue = part.split('=');
+result[keyAndValue[0]] = keyAndValue[1];
+});
+}
+return result;
+}
+function isConsentValid(consent, alertBoxClosed) {
+return isDefined(consent) &&
+isDefined(alertBoxClosed) &&
+new Date() - new Date(alertBoxClosed) <= halfOfYearMillis;
+}
+function getCookie(name) {
+name += "=";
+var cookies = document.cookie.split(";");
+for (var i = 0; i < cookies.length; i += 1) {
+var cookie = cookies[i];
+while (cookie.charAt(0) === " ") {
+cookie = cookie.substring(1, cookie.length);
+}
+if (cookie.indexOf(name) === 0) {
+return cookie.substring(name.length, cookie.length);
+}
+}
+return null;
+}
+function doesGeolocationRequireBanner() {
+// In case window.PCM is not defined, fallback to opt-out
+return window.PCM ? window.PCM.isCountryNeedCookieBanner : true;
+}
+function getExplicitConsent() {
+var consent = getCookie(optanonConsentCookieName);
+var alertBoxClosed = getCookie(optanonBoxClosedCookieName);
+if (isConsentValid(consent, alertBoxClosed)) {
+var consentObject = parseConsentToObject(consent);
+return Object
+.keys(consentGroupIsAllowed)
+.map(function (purpose) {
+var result = {};
+result[purpose] = consentObject.groups.indexOf(consentGroupIsAllowed[purpose]) > -1;
+return result;
+})
+.reduce(
+function (result, currentValue) {
+return Object.assign(result, currentValue);
+}, {
+functional: true
+}
+);
+}
+}
+function getImplicitConsent() {
+var consentValue = !doesGeolocationRequireBanner();
+return {
+functional: true,
+analytical: consentValue,
+marketing: consentValue
+};
+}
+function getValue() {
+var consent = getExplicitConsent();
+if (!consent) {
+consent = getImplicitConsent();
+}
+return consent;
+}
+return {
+getValue: getValue
+};
+});
+//c360 javascript tracker first iteration
+//sends a track request to c360 http tracker
+//in order to use it:
+//1. inline the c360Tracker.js in the page you need to use it
+//2. in your js file:
+//
+// var c360Tracker = B.require('c360Tracker');
+// var event = {
+// action_name:"accommodation_checkout_confirmation_viewed",
+// action_version :"0.2.0",
+// content : { "transaction_id" : 123434},
+// user : { "BKNG_user_id": 123434}
+// };
+// c360Tracker.track(event);
+B.define('c360Tracker', function () {
+/**
+* @var {string} EXPERIMENT_HASH
+*/
+var EXPERIMENT_HASH = 'GfCDATBaFOeBfIcDZDWcDLfMRRKe';
+/**
+* @var {number} isExperimentErrorsPropagate
+*/
+var isExperimentErrorsPropagate = B.et && B.et.track && B.et.track(EXPERIMENT_HASH) || 0;
+var enrichedContext = {};
+var configuration = {
+validateInput: false
+};
+var TRACKER_NAME = 'C360JSTracker';
+var track = function (event) {
+if (event == null) {
+return "event object is null or empty";
+} else {
+//if (enrichedContext.userID != null) {
+// event.user = {BKNG_user_id: enrichedContext.userID};
+//}
+var validationResult = new ValidationResult(true);
+if (configuration.validateInput) {
+validationResult = validateInput(event);
+}
+if (!validationResult.success) {
+return validationResult.message;
+}
+send(event);
+}
+};
+function send(data) {
+data.context = enrichedContext;
+data.tracker = {
+tracker_name: TRACKER_NAME,
+tracker_type: "Client",
+tracker_version: "0.1.0"
+};
+return $.ajax({
+url: '/c360/v1/track',
+type: 'POST',
+data: JSON.stringify(data),
+}).fail(function(jqXHR, textStatus, errorThrown) {
+B.et && B.et.stage && B.et.stage(EXPERIMENT_HASH, 1);
+if (isExperimentErrorsPropagate) {
+var errorMessage = TRACKER_NAME + ' tracking failure: (' + errorThrown + ') [Response ' + jqXHR.status +': '+ jqXHR.responseText + ']';
+B.reportError && B.reportError(errorThrown, errorMessage);
+}
+});
+}
+enrich();
+var scheme =
+{
+"type": "object",
+"properties": {
+"action_name": {
+"type": "string",
+"description": "action name (ex. element viewed)",
+},
+"action_version": {
+"type": "string",
+"description": "action version"
+},
+"content": {
+"type": "object",
+"description": "content defined by the registered producer scheme"
+}
+}
+};
+function ValidationResult(success, message) {
+this.success = success;
+this.message = message;
+}
+function validateInput(event) {
+var result = validateObject(event, scheme);
+return result;
+}
+function validateObject(obj, scheme) {
+if (scheme.properties != null) {
+var propsArray = Object.getOwnPropertyNames(scheme.properties);
+for (var i = 0; i < propsArray.length; i++) {
+var propertyName = propsArray[i];
+if (obj[propertyName] == null) {
+return new ValidationResult(false, "property " + propertyName + " is not defined");
+}
+if (scheme.properties[propertyName].type == "object") {
+var validationResult = validateObject(obj[propertyName], scheme.properties[propertyName]);
+if (validationResult.success === false) {
+return validationResult;
+}
+}
+}
+}
+return new ValidationResult(true);
+}
+function enrich() {
+enrichedContext = {
+page: {
+page_referrer: document.referrer,
+page_url: window.location.href,
+page_title: document.title
+},
+local: {
+currency: B.env.b_selected_currency
+},
+};
+//if (B.env.b_user_genius_status != null && B.env.b_user_genius_status.b_user_id != null)
+// enrichedContext.userID = B.env.b_user_genius_status.b_user_id;
+}
+return {
+track: track
+};
+});
+})
+</script>
+<script type="text/javascript" nonce="le6bD1nif153eMk">
+window.PCM = {
+isCountryNeedCookieBanner: 0,
+isGpcSignalEnabled: 0,
+loadStartedAt: 1688453091,
+countryCode: 'mg',
+isUserLoggedIn: 0
+}
+</script>
+<script type="text/javascript" nonce="le6bD1nif153eMk" src="https://cf.bstatic.com/libs/privacy-consent/releases/2.1.41/customer/cookie-banner.min.js" data-domain-script="3ea94870-d4b1-483a-b1d2-faf1d982bb31"></script>
+<link href="https://shelves.booking.com/" rel="preconnect" crossorigin>
+<meta charset="utf-8">
+<script nonce="le6bD1nif153eMk">
+document.documentElement.className = document.documentElement.className.replace(/\bno-js\b/, 'has-js css-is-loading js-is-loading');
+</script>
+<meta name="referrer" content="origin">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script nonce="le6bD1nif153eMk"> function b_cors_check(supported) { var value = supported ? 1 : 0; if (!/(^|;)\s*cors_js=/.test(document.cookie)) { var d = new Date(); d.setTime(d.getTime() + 60 * 60 * 24 * 365 * 1000); var cookieDomain = '.booking.com' || '.booking.com'; document.cookie = 'cors_js=' + value +'; domain=' + cookieDomain + '; path=/; expires=' + d.toGMTString(); } if (!value) { location.reload(); } } </script>
+<script nonce="le6bD1nif153eMk">(function(d) { d.addEventListener('error', function(e) { if (e.target && e.target.classList.contains('crossorigin-check-js')) { b_cors_check(false); } }, true); })(document); </script>
+<script class="crossorigin-check-js" src="https://cf.bstatic.com/static/js/crossorigin_check_cloudfront_sd/2454015045ef79168d452ff4e7f30bdadff0aa81.js" async crossorigin nonce="le6bD1nif153eMk"></script>
+<script nonce="le6bD1nif153eMk"> 
+;(function() {
+window.b_early_errors = window.b_early_errors || [];
+window.onerror = function() {
+window.b_early_errors.push(arguments);
+};
+}());
+ </script>
+<script nonce="le6bD1nif153eMk">(function(d) { d.addEventListener('load', function(e) { if (e.target && e.target.classList.contains('stylesheet-preload')) { e.target.rel='stylesheet'; } }, true); })(document); </script>
+<style nonce="le6bD1nif153eMk">template,.g-hidden{display:none !important}p.error{line-height:18px;color:#A30000;font-weight:bold;margin:10px}html.no-js .no-js-hidden{display:none}body.rtlcss{direction:rtl}.no-js .js-loading-hidden,.js-is-loading .js-loading-hidden,.css-is-loading .css-loading-hidden{display:none !important}.no-js .js-loading-invisible,.js-is-loading .js-loading-invisible,.css-is-loading .css-loading-invisible{visibility:hidden !important}.css-loading-inline-visible{display:none !important}.css-is-loading .css-loading-inline-visible{display:inline-block !important}.searchbox_redesign select[disabled]{color:#BDBDBD}body,div,dl,dt,dd,ul,ol,li,h1,h2,h3,h4,h5,h6,pre,form,fieldset,input,textarea,p,blockquote,th,td{margin:0;padding:0}fieldset,img{border:0}address,caption,cite,code,dfn,em,strong,th,var{font-style:normal;font-weight:normal}q:before,q:after{content:''}abbr,acronym{border:0}body,input,select,button,textarea{font-family:BlinkMacSystemFont,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif}.rtl,.rtlcss{direction:rtl}.ltr{direction:ltr}.rtlcss .bui-carousel__next,.rtlcss .bui-carousel__prev{transform:scaleX(-1)}body>img,body>iframe[src*="doubleclick.net"]{display:block;margin-top:-1px}a{color:var(--bui_color_action_foreground)}a:link{text-decoration:underline}ol,ul{list-style:none}body{background:var(--bui_color_white);color:#333333;-webkit-text-size-adjust:100%}table{border-collapse:collapse;border-spacing:0}th{text-align:left}.rtlcss th{text-align:right}h1,h2,h3,h4,h5,h6{font-weight:normal}h1{font-weight:bold;margin:10px}h2{font-weight:bold;display:block;margin:0;padding-left:10px;padding-top:2px}.header_profile_btn{font-size:22px;font-weight:normal;padding-left:10px;padding-right:10px;width:auto}.header_profile_btn__genius{font-size:13px}.header_profile_btn .bicon{color:var(--bui_color_white)}.header_profile_btn__genius--svg{padding:0 3px}.genius-profile-icon--svg{margin-top:5px}.searchbox_dest.input_clear_button_input::-webkit-search-cancel-button,.input_destination.input_clear_button_input::-webkit-search-cancel-button{display:none}.input_clear_button{-webkit-tap-highlight-color:rgba(0,0,0,0);background:transparent;border:0;color:#999999;height:100%;font-size:12px;padding:0;opacity:0;outline:none;position:absolute;top:0;transition:opacity .25s;width:38px;z-index:5}.ltr .input_clear_button{padding-left:7px;right:0}.rtl .input_clear_button{padding-right:7px;left:0}.rtlcss .input_clear_button{padding-right:7px;left:0}.searchbox_redesign--destination-focused .input_clear_button,.has-dest-value .input_clear_button,.gps-possible .input_clear_button{opacity:1}.input_clear_button:active{color:var(--bui_color_black);background-color:transparent}.cookie-warning{font-size:13px;display:flex;overflow:hidden;max-height:500px;transition:opacity .3s,max-height 0s .3s;color:var(--bui_color_white);background:#212121;box-shadow:inset 0 -1px var(--bui_color_black);flex-flow:row-reverse nowrap;align-items:center}.cookie-warning__flag{position:absolute;opacity:0}.cookie-warning__flag:checked + .cookie-warning{max-height:0;opacity:0}.cookie-warning__text{overflow:hidden;flex:1 1 auto}.cookie-warning__text,.cookie-warning__close{margin:10px}.cookie-warning__close{padding:4px 6px;border-radius:5px;background:#0071C2;flex:0 0 auto}.cookie-warning__close:active{background:#BAD4F7}.cookie-warning.site-header--sticky{margin-top:40px}.cookie-warning-v2{z-index:1003;position:fixed;bottom:0;left:0;width:100%;background-color:var(--bui_color_white);border-top:1px solid #E6E6E6;text-align:left;color:#333333}.cookie-warning-v2__banner{padding:4px 10px 0 10px;@apply --bui_font_body_2}.cookie-warning-v2__banner-title{margin-bottom:8px}.cookie-warning-v2__more-details,.cookie-warning-v2__settings{z-index:400;overflow-x:auto}.cookie-warning-v2__footer{margin-top:16px}.cookie-warning-v2__footer--text-center{text-align:center}.cookie-warning-v2__header{margin-top:16px}.cookie-warning-v2__header-paragraph{margin:14px 0}.cookie-warning-v2__settings-categories{margin-top:24px}.cookie-warning-v2 .bui-modal__close{height:16px;width:16px}.cookie-warning-v2 .bui-modal__close svg,.cookie-warning-v2__more-details .js-show-settings span{pointer-events:none}.cookie-warning-v2__settings-header-text{margin-top:16px}.cookie-warning-v2 .bui-link{font-weight:normal}.cookie-warning-v2__settings-categories .bui-accordion__row-header{padding:8px 0}.cookie-warning-v2__more-details-content{height:100%}.cookie-warning-v2__more-details-footer{position:fixed;z-index:401;left:0;right:0;bottom:0}.cookie-warning-v2__more-details .bui-accordion{margin-bottom:20px}.site-header{background:#003580;display:block;height:40px;margin:0;padding:0;text-align:left;position:relative;width:100%}.site-header--nav{display:block;float:right;position:relative;z-index:2}a.site-header--logo{height:40px;display:block;margin:0 0 0 10px;position:absolute;left:0;top:0;text-decoration:none;width:auto}.site-header--logo-icons{padding-top:14px}.site-header--nav--item{background-color:#003580;background-image:none;border:none;border-left:none;color:var(--bui_color_white)!important;display:block;float:left;height:40px;margin:0;position:relative;top:auto;right:auto;left:auto;bottom:auto;text-align:center;text-decoration:none!important;cursor:pointer}.site-header--nav--item__menu{width:50px}.site-header--back{box-sizing:border-box;display:none;float:left;left:0 !important;padding-left:25px;padding-right:10px;height:40px;min-width:50px;max-width:50%;position:absolute !important;text-align:center;z-index:1}.site-header--back--active{display:block}.tabbed-nav--content{clear:both;display:none;width:100%}.tabbed-nav--content.tab-active{display:block}.tabbed-nav--content:after{content:" ";clear:both;display:block}.site-header--nav--item__menu{-webkit-tap-highlight-color:rgba(0,0,0,0)}.rtlcss .svg_icons_on_header-rtl_fix{direction:ltr}.u-center-vertically{top:50%;transform:translateY(-50%)}.site-header .bk-icon--menu{position:relative}.site-header--nav--item .bk-icon--nav *{fill:var(--bui_color_white)}.site-header--nav--item.tab-active .bk-icon--nav *{fill:#00224F}#logo{direction:ltr}.site-header .bk-icon--heart{position:relative}.site-header .bk-icon--mybooking{top:2px;position:relative}.site-header .bk-icon--mybooking *{fill:var(--bui_color_white)}.site-header .bk-icon--mybooking.genius{position:relative;top:-1px}.site-header .bk-icon--LoginIcon{position:relative}.site-header .bk-icon--search-header{vertical-align:middle}.site-header .a11y-bk-icon--search-header{position:relative;fill:var(--bui_color_white)}.site-header .bk-icon--leftchevron{position:relative;left:10px;position:absolute;top:8px}.site-header .bk-icon--mybooking.u-center-vertically,.site-header .site-header--nav--item__bbloyalty-accent.u-center-vertically{position:relative;top:50%;transform:translateY(-50%)}#form_search_location .bk-icon--aclose *{fill:#999999}#form_search_location .bk-icon--search{display:block;position:absolute;top:50%;z-index:4;padding:5px 0;left:11px;text-align:center;margin-top:-12px}.rtlcss #form_search_location .bk-icon--search{left:initial;right:10px}#form_search_location .bk-icon--search *{fill:#999999}#form_search_location ul.autocomplete>li.autocomplete_option>a>.bk-icon-wrapper{box-sizing:border-box;padding:0;height:100%;position:absolute;top:0;left:0;width:35px}.rtlcss #form_search_location ul.autocomplete>li.autocomplete_option>a>.bk-icon-wrapper{right:0;left:initial}#form_search_location ul.autocomplete .bk-icon-wrapper svg{height:14px;width:auto;top:50%;left:50%;transform:translate(-50%,-50%);position:absolute}#form_search_location ul.autocomplete .bk-icon-wrapper svg *{fill:#0071C2}a.wl_header_link{width:47px;cursor:pointer}a.wl_header_link .bicon-heart{font-size:17px;line-height:41px}.u-invisible-spoken,.invisible_spoken{position:absolute !important;clip:rect(1px 1px 1px 1px);clip:rect(1px,1px,1px,1px);padding:0 !important;border:0 !important;height:1px !important;width:1px !important;white-space:normal;overflow:hidden;top:0;left:0}.cross-product-bar{@apply --bui_font_small_1;padding:8px 4px;white-space:nowrap;overflow-x:scroll;background:#003580;color:var(--bui_color_white)}.cross-product-bar__link,.cross-product-bar__link:link{display:inline-block;padding:4px;margin:0 4px;color:inherit;font-weight:300;text-decoration:none}.cross-product-bar__link_selected{background-color:rgba(255,255,255,0.3);border-radius:3px}.primary_cta,a.primary_cta,.bigbluebutton{background-color:var(--bui_color_cta_background);background-image:none;border:0;border-radius:8px;color:var(--bui_color_white);cursor:pointer;display:block;font-size:22px;font-weight:bold;margin:0 auto 10px;outline:0;padding:10px;text-align:center;text-decoration:none;text-shadow:0 1px 0 rgba(0,0,0,0.7);-webkit-tap-highlight-color:rgba(0,0,0,0);-webkit-appearance:none;white-space:normal;width:80%}#form_search{background-color:#FAFCFF;padding:5px;margin-bottom:25px;position:relative}#ci_date{position:relative}#ci_date_text,#co_date_text{display:inline-block}.datepickerCal{display:none}.placeholder_clear #input_destination_wrap,#input_destination_wrap{position:relative}.placeholder_clear .searchbox_dest::-webkit-input-placeholder,.placeholder_clear .input_destination::-webkit-input-placeholder{color:#333333}.placeholder_clear #location_found_text,.placeholder_clear #location_loading{padding:1px 0 1px 5px;text-align:left}#ci_date,#co_date{color:#333333;float:left;margin:0 0 10px;width:49.5%}#ci_date{margin-right:1%}.rtlcss #ci_date,.rtlcss #co_date{float:right}.rtlcss #ci_date{margin-right:0;margin-left:1%}.sb-lightbox-brick-error{position:fixed;background:rgba(0,0,0,0.6);top:0;bottom:0;left:0;right:0;z-index:999;text-align:center}.sb-lightbox-brick-error p{padding:30px 20px;background:var(--bui_color_white);color:#333333;text-align:center;font-size:16px;position:absolute;top:50%;transform:translateY(-50%);margin:0 auto;max-width:80%;width:640px;left:0;right:0;border-radius:3px}.sb-lightbox-brick-error
+ p strong{font-weight:bold}.book .group_search select,.group_search select{background:var(--bui_color_white) url(https://cf.bstatic.com/mobile/images/expand_vert/f6c425e4c8b963615862f68825621c4971222198.png) no-repeat right 8px;background-origin:content-box;border:2px solid #FAFCFF;-moz-border-radius:8px;-webkit-border-radius:8px;border-radius:8px;display:block;font-size:16px;line-height:24px;margin-top:5px;padding:3px 5px 3px 3px;-webkit-appearance:none;width:100%}.book .group_search.rtl select,.group_search.rtl select{background-position:left 8px}.book .group_search input,.group_search input{border:2px solid #FAFCFF;-moz-border-radius:8px;-webkit-border-radius:8px;border-radius:8px;font-size:16px;line-height:24px;margin:0 10px 10px 0;padding:6px 3px;text-align:center;-webkit-appearance:none;width:36px}.group_search .child_ages,.group_search .child_ages_label{display:none;margin-top:10px;width:100%}.group_search .child_ages{margin-top:5px}.group_search .age{display:inline-block;margin:0 20px 15px 0;width:auto}.user_selected_nights_copy{padding:0 18px 10px;margin-top:-4px;font-size:14px;line-height:14px;font-weight:bold;text-align:center}form#form_search,form#form_search_location,form.searchbox_redesign{padding:10px 0}.bui-modal form#form_search{border-radius:var(--bui_border_radius_300)}#form_search_h1,#form_search h1,.search_hotels_subtext,.change-dates-title{padding-left:10px;padding-right:10px}label.search_hotels_subtext{display:block}.book form#form_search_location h1#form_search_h1{margin-top:0}.change-dates-title{padding-bottom:10px}.input_destination,.searchbox_dest{-webkit-appearance:none;box-sizing:border-box;color:#333333;display:block;width:100%;@apply --bui_font_strong_1}.bar--container{position:relative}#input_destination{background:var(--bui_color_white)}.input_destination,.searchbox_dest,.book.bp-cards input.input_destination,.book.bp-cards input.searchbox_dest,.placeholder_clear #location_loading,.bar--container,.searchbox-cta__trigger,.searchbox_purpose,.book fieldset.searchbox_purpose,.group_options .group_options_label,.age_option-container,.searchbox-radios,.searchbox_budget{background:var(--bui_color_white);border:solid 1px #CD8900;border-radius:var(--bui_border_radius_100);box-shadow:0 1px 2px rgba(0,0,0,0.05);box-sizing:border-box;height:auto;margin-bottom:0;outline:0;text-indent:0;transition:padding .25s,border-radius .25s}.searchbox_redesign--destination-focused .searchbox_dest,.book.bp-cards .searchbox_redesign--destination-focused input.searchbox_dest,.searchbox_redesign--destination-focused .input_destination,.book.bp-cards .searchbox_redesign--destination-focused input.input_destination{border-color:#0071C2;box-shadow:0 0 4px rgba(0,112,193,0.5);border-radius:0}.sb-recomm-list .autocomplete_option__photo{height:36px}.sb-recomm-title{border-bottom:0;padding:10px 8px;color:#6B6B6B;@apply --bui_font_body_1}.destination-bar{display:block;padding:0 10px;margin-bottom:10px;position:relative;transition:padding .25s}.searchbox_dest,.book.bp-cards input.searchbox_dest,.input_destination,.book.bp-cards input.input_destination{color:#333333;padding:10px 35px 10px 5px;font-weight:bold;position:relative;z-index:3}.rtlcss .searchbox_dest,.rtlcss.book.bp-cards input.searchbox_dest,.rtlcss .input_destination,.rtlcss.book.bp-cards input.input_destination{padding-left:35px;padding-right:5px}.b_lang_ar input.input_destination{}.searchbox_dest::-moz-placeholder,.input_destination::-moz-placeholder{color:#999999 !important;font-weight:normal}.searchbox_dest::-moz-input-placeholder,.input_destination::-moz-input-placeholder{color:#999999 !important;font-weight:normal}.searchbox_dest::-ms-input-placeholder,.input_destination::-ms-input-placeholder{color:#999999 !important;font-weight:normal}.searchbox_dest::-webkit-input-placeholder,.input_destination::-webkit-input-placeholder{color:#999999 !important;font-weight:normal}.searchbox_redesign .primary_cta{margin-top:20px}.searchbox_cals_nojs .bar{position:relative}.searchbox_cals select[name=checkin_monthday],.searchbox_cals select[name=checkout_monthday],.searchbox_cals select[name=checkin_year_month],.searchbox_cals select[name=checkout_year_month]{display:none}.searchbox_cals_nojs .m_cal_date_string{display:block;overflow:hidden;white-space:nowrap}.searchbox_cals_nojs select[name=checkin_monthday],.searchbox_cals_nojs select[name=checkout_monthday],.searchbox_cals_nojs select[name=checkin_year_month],.searchbox_cals_nojs select[name=checkout_year_month]{-webkit-appearance:none;display:block;background:var(--bui_color_white);border-radius:0;border:none;box-shadow:none;color:#333333;box-sizing:border-box;font-weight:bold;outline:0;position:absolute;padding:5px;bottom:1px;z-index:10;text-align:center;width:50%}.searchbox_cals_nojs select[name=checkin_monthday],.searchbox_cals_nojs select[name=checkout_monthday]{left:2px;width:30%;z-index:2}.searchbox_cals_nojs select[name=checkin_year_month],.searchbox_cals_nojs select[name=checkout_year_month]{right:2px;left:auto;width:70%;z-index:1}.searchbox_fullwidth{margin:0 !important;border-radius:0;background-color:#FEBB02;text-align:left}.rtlcss .searchbox_purpose,.rtlcss .searchbox_fullwidth{text-align:right}#form_search_h1{font-weight:normal;margin:10px 0 0 0}.index #form_search_h1{}.searchbox_redesign--destination-focused .destination-bar{padding-left:0;padding-right:0}.searchbox_redesign--destination-focused .searchbox_dest,.book.bp-cards .searchbox_redesign--destination-focused input.searchbox_dest,.searchbox_redesign--destination-focused .input_destination,.book.bp-cards .searchbox_redesign--destination-focused input.input_destination{border-radius:0;padding-top:15px;padding-bottom:15px}.searchbox_errors{background-color:rgba(225,16,16,0.8);border-top:solid 1px #A30000;border-bottom:solid 1px #A30000;border-radius:0;margin-bottom:10px;margin-left:-10px;margin-right:-10px;position:relative;padding:10px;text-shadow:0 1px 0 rgba(0,0,0,0.1)}.searchbox_errors .error{color:var(--bui_color_white);font-size:15px;font-weight:normal;line-height:normal;margin:0;padding:0 10px;text-align:center;text-shadow:0 1px 1px rgba(0,0,0,0.15)}.searchbox_errors .exclamation{display:none}.searchbox_redesign.placeholder_clear #location_loading{padding:10px 25px 10px 15px;position:relative}.rtlcss .searchbox_redesign.placeholder_clear #location_loading{padding-left:25px;padding-right:15px;text-align:right}.searchbox_redesign #loading_icon{margin-top:-11px;position:absolute;right:0;top:50%}.rtlcss .searchbox_redesign #loading_icon{left:0;right:auto}.searchbox_cals{padding-left:10px;padding-right:10px}.book fieldset.searchbox_cals,.book fieldset.group_search{border:none;background:none;border-radius:0;padding-top:0;padding-bottom:0}.book .searchbox_redesign fieldset.searchbox_purpose{padding:0}.book fieldset.searchbox_cals{margin-bottom:0}.searchbox_redesign .datepickerCal{margin-bottom:10px;position:relative;top:-4px}.bar--container{padding:5px;position:relative;z-index:1}.bar--container:after{border-bottom:solid 1px #CD8900;border-right:solid 1px #CD8900;background:var(--bui_color_white);bottom:-7px;content:"";display:none;height:12px;margin-left:-6px;position:absolute;left:50%;transform:rotate(45deg);width:12px}.active>.bar--container{border-radius:3px 3px 0 0}.active>.bar--container:after{display:block}.dual_cal_label{color:#444444;display:block;font-weight:normal;font-size:13px;line-height:1.3em}.searchbox_redesign .m_cal_date_string,.searchbox_redesign #ci_date_text,.searchbox_redesign #co_date_text{font-weight:bold;font-size:15px;line-height:normal}.searchbox_redesign .group_search{margin-bottom:10px;margin-top:0;padding-left:10px;padding-right:10px}.searchbox_redesign .group_options .group_options_label{display:block;float:left;padding:5px;position:relative;margin-right:1%;width:32.66%}.searchbox_redesign .group_options .group_options_lable_expand{width:100% !important}.rtlcss .searchbox_redesign .group_options .group_options_label{margin-left:1%;margin-right:0}.rtlcss .searchbox_redesign .group_options .group_options_label_last{margin:0}.searchbox_redesign .group_options .group_options_label_last{margin:0}.searchbox_redesign .group_options_label:after,.searchbox_redesign .age_option-container:after{border-bottom:solid 3px #0071C2;border-right:solid 3px #0071C2;background:none;content:"";display:block;height:6px;margin-top:-5px;position:absolute;left:auto;right:10px;top:50%;transform:rotate(45deg);width:6px}.rtlcss .searchbox_redesign .group_options_label:after,.rtlcss .searchbox_redesign .age_option-container:after{left:10px;right:auto}.searchbox_redesign .group_options_label:after{bottom:10px;top:auto;margin-top:0}.searchbox_redesign .group_options_label,.searchbox_redesign .age_option-container{overflow:hidden}.searchbox_redesign .group_options_label select,.searchbox_redesign .age_option-container select{width:150%}.rtlcss .searchbox_redesign .group_options_label select,.rtlcss .searchbox_redesign .age_option-container select{text-align:right;direction:rtl}.searchbox_redesign--iphone .group_options_label select,.searchbox_redesign--iphone .age_option-container select{width:100%}.searchbox_redesign .group_options_label--text{display:block;font-size:13px;line-height:16px;padding-bottom:4px;color:#444444}.searchbox_redesign .guest_options,.searchbox_redesign .group_rooms,.searchbox_redesign .group_adults,.searchbox_redesign .group_children,.searchbox_redesign .sort_options,.searchbox_redesign .group_predefined,.searchbox_redesign .age_option-container .age,.book .searchbox_redesign .group_predefined,.book .searchbox_redesign .guest_options,.book .searchbox_redesign .group_rooms,.book .searchbox_redesign .group_adults,.book .searchbox_redesign .group_children,.book .searchbox_redesign .sort-options,.book .searchbox_redesign .age_option-container .age{color:#333333;box-shadow:none;font-weight:bold;font-size:15px;line-height:normal;margin:0;outline:0;text-align:left}.rtlcss.book
+ .searchbox_redesign .group_search input{text-align:right}.searchbox_redesign .guest_options,.searchbox_redesign .group_rooms,.searchbox_redesign .group_adults,.searchbox_redesign .group_children,.searchbox_redesign .sort_options,.searchbox_redesign .group_predefined,.searchbox_redesign .child_ages .age,.book .searchbox_redesign .group_predefined,.book .searchbox_redesign .guest_options,.book .searchbox_redesign .group_rooms,.book .searchbox_redesign .group_adults,.book .searchbox_redesign .group_children,.book .searchbox_redesign .sort_options,.book .searchbox_redesign .child_ages .age{-webkit-appearance:none !important;appearance:none !important;background:none;border:none;border-radius:0;outline:0;padding:0}.searchbox_redesign .group_search .child_ages_label{height:auto;line-height:normal;margin-top:15px}.searchbox_redesign .age_option-container{float:left;margin-right:20px;margin-bottom:10px;min-width:50px;position:relative}.rtlcss .searchbox_redesign .age_option-container{float:right;margin-right:0;margin-left:20px}.searchbox_redesign .age_option-container .age,.book .searchbox_redesign .age_option-container .age{margin:0;padding:5px 15px 5px 5px}.rtlcss .searchbox_redesign .age_option-container .age{padding:5px 5px 5px 15px}.searchbox-icon{display:none;color:#CCCCCC;left:10px;font-size:24px;line-height:24px;margin-top:-12px;position:absolute;top:50%;width:24px;z-index:4}.destination-bar .searchbox-icon{-ms-transition:top .25s;-moz-transition:top .25s;-webkit-transition:top .25s;margin-top:0;top:10px;transition:top .25s}.searchbox_redesign.searchbox_redesign--destination-focused .destination-bar .searchbox-icon{top:15px}.rtlcss .searchbox_redesign .searchbox_purpose .searchbox-icon{display:none}@media only screen and (min-width:350px){.dual_cal_label,.searchbox_redesign .group_options_label--text{font-size:14px}.searchbox_redesign .m_cal_date_string,.searchbox_redesign #ci_date_text,.searchbox_redesign #co_date_text,.searchbox_redesign .group_search select{font-size:16px}}@media only screen and (min-width:500px){.searchbox-icon{display:block}.searchbox_redesign .bar--container,.searchbox_redesign .input_destination,.searchbox_redesign .searchbox_dest{padding-left:45px;padding-right:10px}.searchbox_redesign .group_options .group_options_label{padding-left:10px;padding-right:10px}.searchbox_redesign .age_option-container select{padding-left:10px}}.searchbox_redesign .searchbox_purpose{margin:0 10px 10px 10px;overflow:hidden;position:relative}.searchbox--radio-group{display:block;overflow:hidden;position:relative;z-index:2;width:100%}.searchbox_purpose .group_options_label{position:relative;padding:5px;width:100%}.searchbox--radio-group--item,.searchbox--radio-group--label{display:block;overflow:hidden;height:auto}.searchbox--radio-group--label{background:#F4F4F4;border-bottom:solid 1px #E8E8E8;color:#444444;font-weight:normal;position:relative}.searchbox--radio-group--item{box-sizing:border-box;color:#333333;float:left;font-weight:bold;text-align:left;width:49.75%}.rtlcss .searchbox--radio-group--item{text-align:right;float:right}.searchbox--radio-group--item__leisure,.rtlcss .searchbox--radio-group--item__business{border-left:solid 1px #E8E8E8}.rtlcss .searchbox--radio-group--item__leisure{border-left:solid 1px #E8E8E8}.de .searchbox--radio-group--item__business{width:60%}.de .searchbox--radio-group--item__leisure{width:40%}.searchbox--radio-group--text{display:block;box-sizing:border-box;height:auto;padding:10px 5px 10px 35px;position:relative}.rtlcss .searchbox--radio-group--text{padding-left:5px;padding-right:35px}.searchbox--radio-group--text:before,.searchbox--radio-group--text:after{border-radius:100px;border:solid 1px #C6C6C6;background:#F4F4F4;box-shadow:inset 0 1px 1px rgba(0,0,0,0.1);content:"";display:block;height:16px;margin-top:-9px;position:absolute;left:10px;top:50%;width:16px}.rtlcss .searchbox--radio-group--text:before{left:auto;right:10px}.searchbox--radio-group--text:after{border-radius:100px;background:#0071C2;border:none;content:"";display:none;height:8px;margin-top:-4px;position:absolute;left:15px;top:50%;width:8px}.rtlcss .searchbox--radio-group--text:after{left:auto;right:15px}.searchbox--radio-group--label .searchbox--radio-group--text,.rtlcss .searchbox--radio-group--label .searchbox--radio-group--text{padding:5px;text-shadow:0 1px 0 var(--bui_color_white)}.searchbox--radio-group--label .searchbox--radio-group--text:before,.searchbox--radio-group--label .searchbox--radio-group--text:after{display:none}.searchbox--radio-group--input,.searchbox--radio-group--input:checked{display:block;position:absolute;opacity:0;left:0;top:-30px}.searchbox--radio-group--input:checked + .searchbox--radio-group--text{}.searchbox--radio-group--input:checked + .searchbox--radio-group--text:before{border:solid 1px #0071C2}.searchbox--radio-group--input:checked + .searchbox--radio-group--text:after{display:block}.searchbox-travel-purpose-account-split{padding:5px 10px}.searchbox-travel-purpose-account-split p{margin:5px 0}.searchbox-travel-purpose-account-split label{font-weight:bold}.dest-input--with-icons{position:relative}.dest-input--with-icons .searchbox_dest,.book.bp-cards .dest-input--with-icons input.searchbox_dest,.dest-input--with-icons .input_destination,.book.bp-cards .dest-input--with-icons input.input_destination{padding-left:30px;padding-right:30px}.searchbox-calendar--with-prices .bui-calendar .calendar-day__number,.searchbox-calendar--with-prices .bui-calendar .calendar-day__price{line-height:normal;display:block}.searchbox-calendar--with-prices .bui-calendar .calendar-day__number{padding-top:3px}.searchbox-calendar--with-prices .bui-calendar .calendar-day__price{font-size:10px;padding-top:2px;padding-bottom:2px}.searchbox-calendar--with-prices .bui-calendar .bui-calendar__date:not(.bui-calendar__date--selected,.bui-calendar__date--today) .calendar-day--unavailable{color:#BDBDBD}.searchbox-calendar--with-prices .bui-calendar .bui-calendar__date:not(.bui-calendar__date--selected,.bui-calendar__date--today) .calendar-day__price{color:#BDBDBD}.searchbox-calendar--with-prices .calendar-dates-prices-info-section{border:none}.searchbox-calendar--with-prices .calendar-dates-prices-loading__spinner,.searchbox-calendar--with-prices .calendar-dates-prices-loading__text{display:inline-block;vertical-align:top}.searchbox-calendar--with-prices .calendar-dates-prices-loading__spinner{margin-right:8px;margin-top:2px}.searchbox-calendar--with-prices .calendar-dates-prices-info-message{color:#BDBDBD}.bui-carousel.carousel-extended-dates{padding:0;margin-bottom:calc(-1 * var(--bui_spacing_1x));transform:translateX(-8px);border-top:1px solid #e7e7e7}.bui-carousel.carousel-extended-dates .bui-carousel__item{width:unset;margin-right:8px;color:var(--bui_color_black);padding-bottom:var(--bui_spacing_1x)}.bui-carousel.bui-carousel.carousel-extended-dates .bui-carousel__item .bui-input-checkbutton__item.ced-checked{border:1px solid #0071C2;border-radius:50px;background:#E4F4FF;color:#0071C2}.bui-carousel.bui-carousel.carousel-extended-dates .bui-carousel__item .bui-input-checkbutton__item{border:1px solid #6B6B6B;border-radius:50px;background:var(--bui_color_white);color:var(--bui_color_foreground);box-shadow:unset}.bui-carousel.carousel-extended-dates .bui-carousel__item:first-child{margin-left:8px}.bui-carousel.bui-carousel.carousel-extended-dates .bui-carousel__item .bui-input-checkbutton .bui-input-checkbutton__check{margin:unset;margin-right:8px;height:14px;width:14px;display:inline-block}.searchbox_cross_product__overlay--calendar.carousel-extended-dates{height:85%}.bui-carousel__inner.carousel-extended-dates__inner{padding-top:var(--bui_spacing_4x)};.carousel-extended-dates-calendar-www .carousel-extended-dates{border-top:1px solid #EDEDED}.sb-searchbox__input .calendar-extended-plusminus-www{padding-left:var(--bui_spacing_1x)}.xp-calendar .bui-calendar.carousel-extended-dates-calendar-www{width:610px}.sb-block-hide-when-loaded{display:none}.sb-block-loading .sb-block-hide-when-loaded{display:block}.sb-block-loading .sb-block-hide-when-loading{display:none!important}.searchbox_cross_product__wrapper .searchbox_cross_product__wrapper-inner{padding:4px 0!important;background-color:var(--bui_color_accent_background);border-radius:var(--bui_border_radius_200)}.searchbox_cross_product__title{background:#F5F5F5;padding:24px 16px 16px}.searchbox_cross_product__title #form_search_h1{padding:0;margin:0;@apply --bui_font_headline_2}.searchbox_cross_product__title .search_hotels_subtext{display:block;font-size:14px;line-height:20px;padding:0}.searchbox_cross_product__section-container{display:block;margin-bottom:4px;position:relative;padding:0 4px;color:#333333}.searchbox_cross_product__section{background:var(--bui_color_white);position:relative;box-shadow:none;border-radius:var(--bui_border_radius_100);min-height:52px;border:0;padding:0 8px;width:100%;box-sizing:border-box}.searchbox_cross_product__section-container--double{display:flex;flex-wrap:wrap;flex-direction:row;justify-content:space-between}.searchbox_cross_product__section-container--double .searchbox_cross_product__section{width:calc(50% - 3px);display:block}.searchbox_cross_product__section--togglable fieldset{display:none}.searchbox_cross_product__section--open fieldset{display:block}.searchbox_cross_product__section--open .searchbox_cross_product__section-icon--right{transform:rotateX(180deg);top:18px}.searchbox_cross_product__section-top,.searchbox_cross_product__section--destination #location_loading,.searchbox_cross_product__section--destination #location_found_text{@apply --bui_font_body_2;color:#333333;padding:16px 0}.searchbox_cross_product__section--with-icon .searchbox_cross_product__section-top{padding-left:24px;padding-right:15px;font-weight:normal;box-sizing:border-box}.rtlcss .searchbox_cross_product__section--with-icon .searchbox_cross_product__section-top{padding-left:15px;padding-right:24px}.searchbox_cross_product__section--with-labe
+ls .searchbox_cross_product__section-top{padding:4px 0 8px}.searchbox_cross_product__section-top--flex{display:flex}.searchbox_cross_product__section-top--flex>*{flex:1;margin:0}.searchbox_cross_product__section-top--flex,div.searchbox_cross_product__section-top--inline{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}div.searchbox_cross_product__section-top--inline>*{display:inline-block;width:auto!important;vertical-align:top;margin:0}.searchbox_cross_product__section-icon{display:block;position:absolute;top:18px;z-index:4;text-align:center;fill:#999999;font-size:0}.searchbox_cross_product__section-icon--left{left:8px}.rtlcss .searchbox_cross_product__section-icon--left{left:auto;right:8px}.searchbox_cross_product__section-icon--right{right:8px}.rtlcss .searchbox_cross_product__section-icon--right{right:auto;left:8px}.searchbox_cross_product__section-icon--url{transform:scale(0.9);width:18px;height:18px;background-repeat:no-repeat;background-position-x:2px}.searchbox_cross_product .primary_cta.m_bigger_search_button{width:calc(100% - 8px);margin:0 4px;padding:13px 0 11px;border-radius:3px;text-shadow:none;@apply --bui_font_headline_3}.searchbox_cross_product__error{background-color:#FCB4B4;color:var(--bui_color_white);@apply --bui_font_small_1;padding:5px 10px;border-radius:3px;margin:0 4px 4px 4px}.searchbox_cross_product__background{min-height:calc(100vh - 82px);display:flex;justify-content:center;flex-direction:column;background:linear-gradient(#62BEF3,var(--bui_color_white));background-position:center center;background-repeat:no-repeat;background-size:cover;transition:250ms linear}.searchbox_cross_product__background .searchbox_cross_product__title,.searchbox_cross_product__background .searchbox_cross_product__wrapper{background:transparent}.searchbox_cross_product__background--southwest{background-position:100px -24px;background-size:contain;background-color:#1A48A0}.rocketmiles-value{color:#FFF;text-shadow:black 2px 2px 2px}@media only screen and (max-width:374px){.searchbox_cross_product_v2 .searchbox_cross_product__wrapper{padding:0 4px 50px}}@media only screen and (max-width:360px){#ci_date_field,#co_date_field{font-size:14px;line-height:20px;font-weight:700}}@media only screen and (max-width:325px){.searchbox_cross_product__section--responsive .searchbox_cross_product__section-top,.searchbox_cross_product__section--responsive select{font-size:12px!important}}.searchbox_cross_product__section--destination #input_destination_wrap{position:static!important}.searchbox_cross_product__destination{outline:none;width:100%;border:0;-webkit-appearance:textfield;text-overflow:ellipsis}.searchbox_cross_product__destination::placeholder{color:#333333}.searchbox_cross_product__destination::-webkit-search-decoration{-webkit-appearance:none}.searchbox_cross_product__destination::-webkit-search-cancel-button{display:none}.searchbox_cross_product__section--calendar .searchbox_cross_product__section-icon--left{top:18px}.searchbox_cross_product__section--calendar #ci_date,.searchbox_cross_product__section--calendar #co_date{float:none;margin:0;width:auto}.searchbox_cross_product__section--calendar #ci_date_field,.searchbox_cross_product__section--calendar #co_date_field{line-height:inherit}.searchbox_cross_product__section--calendar [data-cal]{white-space:nowrap;overflow:hidden}.searchbox_cross_product__section--calendar .dual_cal_label,.searchbox_cross_product__section--calendar .searchbox-icon{display:none}.searchbox_cross_product__section--calendar .dual_cal_label{font-size:14px;line-height:20px}.searchbox_cross_product__date-with-time-container{display:flex}.searchbox_cross_product__date-with-time{flex:2;position:relative;padding-right:30px}.rtlcss .searchbox_cross_product__date-with-time{padding-right:0;padding-left:30px}.searchbox_cross_product__date-with-time .searchbox_cross_product__section-icon--right{margin-top:-18px;height:18px}.searchbox_cross_product__date-hour{border-left:1px solid #BDBDBD;flex:1;text-align:center}.searchbox_cross_product__date-hour select{border:0;padding:0;display:inline-block;width:auto}.searchbox_cross_product__date-hour select:focus{box-shadow:none;outline:none}.rtlcss .searchbox_cross_product__date-hour{border-left:0;border-right:1px solid #E6E6E6}.sb-block-loading .searchbox_cross_product__section--calendar .searchbox_cross_product__nojs-select{border:none;padding:0;box-shadow:none!important;background:var(--bui_color_white)}.sb-block-loading select[name="checkin_monthday"],.sb-block-loading select[name="checkout_monthday"]{max-width:30px}.sb-block-loading select[name="checkout_monthday"]{margin-left:5px}.searchbox_cross_product .searchbox_cals_nojs .searchbox_cross_product__section-top{padding-bottom:4px}.searchbox_cross_product .searchbox_cals_nojs #ci_date_field,.searchbox_cross_product .searchbox_cals_nojs #co_date_field{visibility:hidden;min-height:30px}.searchbox_cross_product .searchbox_cals_nojs select{-moz-appearance:none;-webkit-appearance:none;appearance:none;border:none;outline:none;background:var(--bui_color_white);@apply --bui_font_body_2}.searchbox_cross_product .searchbox_cals_nojs select::-ms-expand{display:none}.searchbox_cross_product__section--groups{@apply --bui_font_body_2}.searchbox_cross_product__section--groups::after{content:"";clear:both;display:table}.searchbox_cross_product__groups-label{overflow:hidden;border-right:1px solid #E6E6E6}.searchbox_cross_product__groups-label:not(:first-child)>*{margin-left:8px}.searchbox_cross_product__groups-label:last-child{border-right:none}.rtlcss .searchbox_cross_product__groups-label{border-right:none;border-left:1px solid #BDBDBD}.rtlcss .searchbox_cross_product__groups-label:last-child{border-left:none}.rtlcss .searchbox_cross_product__groups-label:not(:first-child)>*{margin-left:0;margin-right:8px}.searchbox_cross_product__section--groups .searchbox_cross_product__section-top select{border:none;padding:0;box-shadow:none!important;background:var(--bui_color_white)}.searchbox_cross_product__groups-label-text{font-weight:normal;font-size:14px;line-height:20px}.searchbox_cross_product__section-group-children{margin-top:10px}.searchbox_cross_product__section-group-children label{display:block;margin-bottom:5px}.searchbox_cross_product__section-group-children div.age_option-container{float:left;margin-right:20px;margin-bottom:10px;min-width:50px;position:relative;border:1px solid rgba(0,112,193,0.85)}.searchbox_cross_product__section--travel-purpose p{font-size:14px;font-weight:normal;line-height:20px}.searchbox_cross_product__section--travel-purpose{display:flex;align-items:center}.searchbox_cross_product__section-icon--driver-age{background-image:url(https://cf.bstatic.com/static/img/cross_product_index/guest/b2e5f2aa32b71ca0fc66aa671e4e958bcd69b7d0.svg)}select.searchbox_cross_product__driver-age{border:0;padding:0;outline:none;width:100%}select.searchbox_cross_product__driver-age:focus{box-shadow:none;outline:none}.searchbox_cross_product__overlay-container,.searchbox_cross_product--overlay-loading .dualcal-pikaday,.searchbox_cross_product--overlay-loading .autocomplete,.searchbox_cross_product--overlay-loading .popdest,.searchbox_cross_product__overlay-content,.searchbox_cross_product__overlay-dummy{display:none}.searchbox_cross_product__background--overlayed{transition:none}.recent-search{background-color:var(--bui_color_white);display:none}.recent-search__list{list-style:none}.recent-search__item{position:relative;padding:12px 0 12px 35px;border-bottom:solid 1px #E8E8E8;line-height:1.42}.recent-search a{text-decoration:none;color:inherit;display:flex;width:100%}.recent-search__title{padding-top:15px;padding-bottom:15px}.rtl .recent-search__item{padding:4px 35px 5px 0}.recent-search__item-icon{padding-top:8.5px}.searchbox_cross_product_v2 .searchbox_cross_product__wrapper{padding:0 16px 50px}.wcu_m_container .searchbox_cross_product_v2 .searchbox_cross_product__wrapper{padding:0 16px 16px}.searchbox_cross_product_v2 .searchbox_cross_product__wrapper-inner{padding:6px 0 !important}.searchbox_cross_product_v2 .searchbox_cross_product__section-container{padding:0 6px;margin-bottom:8px}.searchbox_cross_product_v2 .searchbox_cross_product__calendar-title{display:none}.searchbox_cross_product_v2 form.searchbox_cross_product .primary_cta.m_bigger_search_button{width:calc(100% - 12px);margin:0 6px}.searchbox_cross_product_v2 .searchbox_cross_product__section-top,.searchbox_cross_product_v2 .searchbox_cross_product__section--destination #location_loading,.searchbox_cross_product_v2 .searchbox_cross_product__section--destination #location_found_text,.searchbox_cross_product__section--groups .searchbox_cross_product__section-top select,.searchbox_cross_product__section--calendar .searchbox_cross_product__nojs-select{font-size:16px;font-weight:bold;line-height:24px}.searchbox_cross_product_v2 .searchbox_cross_product__section--calendar .dual_cal_label{display:block;font-weight:normal}.searchbox_cross_product_v2 .searchbox_cross_product__wrapper--full{padding:0 0 10px 0;margin-bottom:10px}.this_is_a_noop_class{visibility:hidden}</style>
+<link class="stylesheet-preload" rel="preload" href="https://cf.bstatic.com/mobile/css/core_cloudfront_sd.iq_ltr/47f4077e5e0024a5a35f8198e57fecc7ef6829b2.css" as="style" data-main-css data-async>
+<noscript><link rel="stylesheet" href="https://cf.bstatic.com/mobile/css/core_cloudfront_sd.iq_ltr/47f4077e5e0024a5a35f8198e57fecc7ef6829b2.css"></noscript>
+<link class="stylesheet-preload" rel="preload" href="https://cf.bstatic.com/mobile/css/app_cloudfront_sd.iq_ltr/7993e19373f76501ebce604add898ededd36e4ff.css" as="style" data-main-css data-async>
+<noscript><link rel="stylesheet" href="https://cf.bstatic.com/mobile/css/app_cloudfront_sd.iq_ltr/7993e19373f76501ebce604add898ededd36e4ff.css"></noscript>
+<link class="stylesheet-preload" rel="preload" href="https://cf.bstatic.com/mobile/css/index_cloudfront_sd.iq_ltr/4f43bd544779a182c5c20c440879c9fa7491063a.css" as="style" data-main-css data-async>
+<noscript><link rel="stylesheet" href="https://cf.bstatic.com/mobile/css/index_cloudfront_sd.iq_ltr/4f43bd544779a182c5c20c440879c9fa7491063a.css"></noscript>
+<link class="stylesheet-preload" rel="preload" href="https://cf.bstatic.com/mobile/css/iq_m_type_overrides_cloudfront_sd.iq_ltr/f02caf6b2406afbf6d7eb2fa20a77b92f18d062f.css" as="style" data-main-css data-async>
+<noscript><link rel="stylesheet" href="https://cf.bstatic.com/mobile/css/iq_m_type_overrides_cloudfront_sd.iq_ltr/f02caf6b2406afbf6d7eb2fa20a77b92f18d062f.css"></noscript>
+<script id="preload" nonce="le6bD1nif153eMk">
+(function(d){
+var cs = d.getElementById('preload');
+var load = function (href) {
+var l = d.createElement('link');
+l.rel = 'stylesheet';
+l.setAttribute('data-async', '');
+l.href = href;
+if (l.addEventListener) {
+l.media = 'none';
+l.addEventListener('load', function onLoad() {
+l.removeEventListener('load', onLoad);
+l.removeAttribute('media');
+});
+}
+cs.parentNode.insertBefore(l, cs);
+};
+var supportsPreload = false;
+try {
+supportsPreload = d.createElement('link').relList.supports('preload');
+} catch (e) {}
+if (!supportsPreload) {
+Array.prototype.forEach.call(d.getElementsByTagName('link'), function (l) {
+if (l.getAttribute('rel') === 'preload' && l.hasAttribute('data-main-css')) {
+l.removeAttribute('data-async');
+load(l.getAttribute('href'));
+}
+});
+}
+}(document));
+</script>
+<link rel="preload" as="script" href="https://cf.bstatic.com/mobile/js/core-deps-inlinedet_cloudfront_sd/97754f5bf295ed27240e6fb859eb624545b055b1.js" crossorigin nonce="le6bD1nif153eMk">
+<link rel="preload" as="script" href="https://cf.bstatic.com/mobile/js/core_cloudfront_sd/ee7a278a7df67a258385cb69a7bcc9bdff897a3b.js" crossorigin nonce="le6bD1nif153eMk">
+<link rel="preload" as="script" href="https://cf.bstatic.com/mobile/js/app_cloudfront_sd/2041ac81ca90e215e9f537760522b9d62cb7c0fc.js" crossorigin nonce="le6bD1nif153eMk">
+<link rel="preload" as="script" href="https://cf.bstatic.com/mobile/js/index_sync_cloudfront_sd/c978cb0b9535671d62c6002955fc43056b1b2a7e.js" crossorigin nonce="le6bD1nif153eMk">
+<link rel="preload" as="script" href="https://cf.bstatic.com/mobile/js/lp_cloudfront_sd/de56760b477a2e7936456265f82876ab2bfc5059.js" crossorigin nonce="le6bD1nif153eMk">
+<link rel="preload" as="script" href="https://cf.bstatic.com/mobile/js/index_cloudfront_sd.js" crossorigin nonce="le6bD1nif153eMk">
+<link rel="preload" as="script" href="https://cf.bstatic.com/static/js/error_catcher_bec_cloudfront_sd/0acd2ada6c74d5dec978a04ea837952bdf050cd2.js" crossorigin nonce="le6bD1nif153eMk">
+<script nonce="le6bD1nif153eMk"> if( window.performance && performance.measure && 'b-stylesheets') { performance.measure('b-stylesheets'); } </script> 
+<script nonce="le6bD1nif153eMk"> var lzimg = function(state){lzimg.state = state}; </script> <script nonce="le6bD1nif153eMk">function ImageLazyLoader(){this.highResQueue=[];this.shouldLoadHighRes=false;this.viewPortExtendedHeight=null;this.isWatchingForNewImages=false;this.supportsIntersectionObserver='IntersectionObserver'in window&&'IntersectionObserverEntry'in window&&'intersectionRatio'in IntersectionObserverEntry.prototype&&'isIntersecting'in IntersectionObserverEntry.prototype}ImageLazyLoader.prototype={SCREEN_HEIGHT_COEFFICIENT:1.4,SCREEN_SIDE_COEFFICIENT:1.33,LAZY_IMAGE_CLASS:'.js-lazy-image',init:function(){this.watcher=this.getWatcher();if(!this.supportsIntersectionObserver){var updateViewportHeight=function(){this.viewPortExtendedHeight=(window.innerHeight||document.documentElement.clientHeight)*this.SCREEN_HEIGHT_COEFFICIENT}.bind(this);window.addEventListener('resize',updateViewportHeight);window.addEventListener('orientationchange',updateViewportHeight);updateViewportHeight()}document.addEventListener('readystatechange',this.enableHighResImagesLoading.bind(this));if(window.lzimg&&window.lzimg.state){this.documentLoadingStateChanged(window.lzimg.state)}window.lzimg=this.documentLoadingStateChanged.bind(this)},enableHighResImagesLoading:function(){if('complete'!==document.readyState)return;document.removeEventListener('readystatechange',this.enableHighResImagesLoading.bind(this));this.shouldLoadHighRes=true;this.highResQueue.forEach(function(lazyImage){this.watcher.add(lazyImage)}.bind(this));this.highResQueue=[]},loadLazyImage:function(lazyImage){var paths=this.parseDataSrc(lazyImage);if(this.shouldLoadHighRes&&2===paths.length){this.loadImageAndInsert(paths[1],lazyImage)}else{this.loadImageAndInsert(paths[0],lazyImage)}if(!this.shouldLoadHighRes&&2===paths.length){this.highResQueue.push(lazyImage)}},observeMutations:function(){if('MutationObserver'in window){this.isWatchingForNewImages=true;var observer=new MutationObserver(function(mutations){mutations.forEach(function(mutation){Array.prototype.forEach.call(mutation.addedNodes,function(node){if(1!==node.nodeType)return;this.addToWatch(node)}.bind(this))}.bind(this))}.bind(this));observer.observe(document.body,{childList:true,subtree:true,characterData:false})}},documentLoadingStateChanged:function(state){if(!this.isWatchingForNewImages){this.observeMutations();this.addToWatch(document.body);if(!this.isWatchingForNewImages&&state==='ready'){this.addToWatch(document.body);this.listenMutationEvents();this.isWatchingForNewImages=true}}},addToWatch:function(el){if(this.isValidLazyImage(el)){this.watcher.add(el)}var imageList=el.querySelectorAll(this.LAZY_IMAGE_CLASS);for(var i=0;i<imageList.length;i++){var image=imageList[i];if(this.isValidLazyImage(image)){this.watcher.add(image)}}},isValidLazyImage:function(el){return el.getAttribute('data-src')&&!el.getAttribute('data-lazy')&&el.classList.contains('js-lazy-image')},parseDataSrc:function(el){var paths=el.getAttribute('data-src').split(',');for(var i=0;i<paths.length;i++){paths[i]=paths[i].trim()}return paths},loadImageAndInsert:function(src,el){var img=new Image();var encodedSRC=encodeURI(src);img.onload=function imageLoadedHandler(){if(el.tagName==="IMG"){el.src=encodedSRC}else{el.style.backgroundImage='url(\"'+encodedSRC+'\")'}};img.src=encodedSRC},listenMutationEvents:function(){if('MutationEvent'in window){document.body.addEventListener('DOMNodeInserted',function(event){var node=event.target;if(1!==node.nodeType)return;this.addToWatch(node)}.bind(this))}},getWatcher:function(){if(this.supportsIntersectionObserver){return this.intersectionObserverWatcher()}else{return this.vanillaJSWatcher()}},intersectionObserverWatcher:function(){var intersectionObserverHandler=function(entries){entries.forEach(function(entry){if(entry.isIntersecting){this.loadLazyImage(entry.target);intersectionObserver.unobserve(entry.target)}}.bind(this))}.bind(this);var intersectionObserverProps={rootMargin:'0% '+(100*this.SCREEN_SIDE_COEFFICIENT-100)+'% '+(100*this.SCREEN_HEIGHT_COEFFICIENT-100)+'% '+(100*this.SCREEN_SIDE_COEFFICIENT-100)+'%'};var intersectionObserver=new IntersectionObserver(intersectionObserverHandler,intersectionObserverProps);return{add:function add(lazyImage){lazyImage.setAttribute('data-lazy',1);intersectionObserver.observe(lazyImage)},remove:function remove(lazyImage){intersectionObserver.unobserve(lazyImage)}}},vanillaJSWatcher:function(){var add,remove;var _eventsAttached=false;var _images=[];var _elementInViewport=function(el){var rect=el.getBoundingClientRect();return(rect.top>=0&&rect.left>=0&&rect.top<=this.viewPortExtendedHeight)}.bind(this);var _throttle=function(func,wait){var timeout=null;var previous=0;var later=function(){previous=Date.now();timeout=null;func.call()};return function(){var now=Date.now();var remaining=wait-(now-previous);if(remaining<=0||remaining>wait){if(timeout){clearTimeout(timeout);timeout=null}previous=now;func.call()}else if(!timeout){timeout=setTimeout(later,remaining)}}};var _visibilityHandler=_throttle(function(){for(var i=0;i<_images.length;i++){var lazyImage=_images[i];if(_elementInViewport(lazyImage)){remove(lazyImage);this.loadLazyImage(lazyImage)}}}.bind(this),50);var _addEvents=function(){_eventsAttached=true;window.addEventListener('scroll',_visibilityHandler);window.addEventListener('resize',_visibilityHandler);window.addEventListener('orientationchange',_visibilityHandler);window.removeEventListener('readystatechange',_visibilityHandler)};var _removeEvents=function(){_eventsAttached=false;window.removeEventListener('scroll',_visibilityHandler);window.removeEventListener('resize',_visibilityHandler);window.removeEventListener('orientationchange',_visibilityHandler);window.removeEventListener('readystatechange',_visibilityHandler)};add=function(lazyImage){lazyImage.setAttribute('data-lazy',1);if(_elementInViewport(lazyImage)){this.loadLazyImage(lazyImage)}else{_images.push(lazyImage);if(!_eventsAttached){_addEvents()}}}.bind(this);remove=function(lazyImage){var index=_images.indexOf(lazyImage);if(-1<index){_images.splice(index,1);if(0===_images.length){_removeEvents()}}};return{add:add,remove:remove}}};ImageLazyLoader.prototype.isHiDPI=function(){var mediaQuery='(-webkit-min-device-pixel-ratio:1.5),\(min--moz-device-pixel-ratio:1.5),\(-o-min-device-pixel-ratio:3/2),\(min-resolution:1.5dppx)';
+return window.matchMedia && window.matchMedia(mediaQuery).matches;
+};
+// eslint-disable-next-line no-undef
+ImageLazyLoader.prototype.enableHighResImagesLoading = function () {
+if ('complete' !== document.readyState) return;
+document.removeEventListener('readystatechange',this.enableHighResImagesLoading);if(this.isHiDPI()){this.shouldLoadHighRes=true}this.highResQueue.forEach(function(lazyImage){this.watcher.add(lazyImage)}.bind(this));this.highResQueue=[]};new ImageLazyLoader().init();</script><link rel="alternate" type="text/html" hreflang="en-gb" href="https://www.booking.com/index.en-gb.html" title="English (UK)"/>
+<link rel="alternate" type="text/html" hreflang="en-us" href="https://www.booking.com/" title="English (US)"/>
+<link rel="alternate" type="text/html" hreflang="de" href="https://www.booking.com/index.de.html" title="Deutsch"/>
+<link rel="alternate" type="text/html" hreflang="nl" href="https://www.booking.com/index.nl.html" title="Nederlands"/>
+<link rel="alternate" type="text/html" hreflang="fr" href="https://www.booking.com/index.fr.html" title="Français"/>
+<link rel="alternate" type="text/html" hreflang="es" href="https://www.booking.com/index.es.html" title="Español"/>
+<link rel="alternate" type="text/html" hreflang="es-ar" href="https://www.booking.com/index.es-ar.html" title="Español (AR)"/>
+<link rel="alternate" type="text/html" hreflang="es-mx" href="https://www.booking.com/index.es-mx.html" title="Español (MX)"/>
+<link rel="alternate" type="text/html" hreflang="ca" href="https://www.booking.com/index.ca.html" title="Català"/>
+<link rel="alternate" type="text/html" hreflang="it" href="https://www.booking.com/index.it.html" title="Italiano"/>
+<link rel="alternate" type="text/html" hreflang="pt-pt" href="https://www.booking.com/index.pt-pt.html" title="Português (PT)"/>
+<link rel="alternate" type="text/html" hreflang="pt-br" href="https://www.booking.com/index.pt-br.html" title="Português (BR)"/>
+<link rel="alternate" type="text/html" hreflang="no" href="https://www.booking.com/index.no.html" title="Norsk"/>
+<link rel="alternate" type="text/html" hreflang="fi" href="https://www.booking.com/index.fi.html" title="Suomi"/>
+<link rel="alternate" type="text/html" hreflang="sv" href="https://www.booking.com/index.sv.html" title="Svenska"/>
+<link rel="alternate" type="text/html" hreflang="da" href="https://www.booking.com/index.da.html" title="Dansk"/>
+<link rel="alternate" type="text/html" hreflang="cs" href="https://www.booking.com/index.cs.html" title="Čeština"/>
+<link rel="alternate" type="text/html" hreflang="hu" href="https://www.booking.com/index.hu.html" title="Magyar"/>
+<link rel="alternate" type="text/html" hreflang="ro" href="https://www.booking.com/index.ro.html" title="Română"/>
+<link rel="alternate" type="text/html" hreflang="ja" href="https://www.booking.com/index.ja.html" title="日本語"/>
+<link rel="alternate" type="text/html" hreflang="zh-cn" href="https://www.booking.com/index.zh-cn.html" title="简体中文"/>
+<link rel="alternate" type="text/html" hreflang="zh-tw" href="https://www.booking.com/index.zh-tw.html" title="繁體中文"/>
+<link rel="alternate" type="text/html" hreflang="pl" href="https://www.booking.com/index.pl.html" title="Polski"/>
+<link rel="alternate" type="text/html" hreflang="el" href="https://www.booking.com/index.el.html" title="Ελληνικά"/>
+<link rel="alternate" type="text/html" hreflang="ru" href="https://www.booking.com/index.ru.html" title="Русский"/>
+<link rel="alternate" type="text/html" hreflang="tr" href="https://www.booking.com/index.tr.html" title="Türkçe"/>
+<link rel="alternate" type="text/html" hreflang="bg" href="https://www.booking.com/index.bg.html" title="Български"/>
+<link rel="alternate" type="text/html" hreflang="ar" href="https://www.booking.com/index.ar.html" title="العربية"/>
+<link rel="alternate" type="text/html" hreflang="ko" href="https://www.booking.com/index.ko.html" title="한국어"/>
+<link rel="alternate" type="text/html" hreflang="he" href="https://www.booking.com/index.he.html" title="עברית"/>
+<link rel="alternate" type="text/html" hreflang="lv" href="https://www.booking.com/index.lv.html" title="Latviski"/>
+<link rel="alternate" type="text/html" hreflang="uk" href="https://www.booking.com/index.uk.html" title="Українська"/>
+<link rel="alternate" type="text/html" hreflang="hi" href="https://www.booking.com/index.hi.html" title="हिन्दी"/>
+<link rel="alternate" type="text/html" hreflang="id" href="https://www.booking.com/index.id.html" title="Bahasa Indonesia"/>
+<link rel="alternate" type="text/html" hreflang="ms" href="https://www.booking.com/index.ms.html" title="Bahasa Malaysia"/>
+<link rel="alternate" type="text/html" hreflang="th" href="https://www.booking.com/index.th.html" title="ภาษาไทย"/>
+<link rel="alternate" type="text/html" hreflang="et" href="https://www.booking.com/index.et.html" title="Eesti"/>
+<link rel="alternate" type="text/html" hreflang="hr" href="https://www.booking.com/index.hr.html" title="Hrvatski"/>
+<link rel="alternate" type="text/html" hreflang="lt" href="https://www.booking.com/index.lt.html" title="Lietuvių"/>
+<link rel="alternate" type="text/html" hreflang="sk" href="https://www.booking.com/index.sk.html" title="Slovenčina"/>
+<link rel="alternate" type="text/html" hreflang="sr" href="https://www.booking.com/index.sr.html" title="Srpski"/>
+<link rel="alternate" type="text/html" hreflang="sl" href="https://www.booking.com/index.sl.html" title="Slovenščina"/>
+<link rel="alternate" type="text/html" hreflang="vi" href="https://www.booking.com/index.vi.html" title="Tiếng Việt"/>
+<link rel="alternate" type="text/html" hreflang="tl" href="https://www.booking.com/index.tl.html" title="Filipino"/>
+<link rel="alternate" type="text/html" hreflang="is" href="https://www.booking.com/index.is.html" title="Íslenska"/>
+<script nonce="le6bD1nif153eMk">
+(function(){
+document.addEventListener('DOMContentLoaded', function(e) {
+window._pxAppId = 'PXikKuL2RM';
+setTimeout(function() {
+var pxs = document.createElement('script');
+pxs.crossOrigin = 'anonymous';
+pxs.nonce = 'le6bD1nif153eMk';
+pxs.src = 'https://cf.bstatic.com/libs/perimeterx/px.v7.6.9.min.js';
+document.head.appendChild(pxs);
+}, 750);
+});
+}());
+</script>
+<script nonce="le6bD1nif153eMk">
+(function(){
+var delayMs = 0;
+document.addEventListener('DOMContentLoaded', function(e) {
+setTimeout(function() {
+var script = document.createElement('script');
+script.nonce = 'le6bD1nif153eMk';
+script.src = '/87sduif98q3rijax';
+script.async = true;
+document.head.appendChild(script);
+}, delayMs);
+});
+}());
+</script>
+<script type="application/ld+json" nonce="le6bD1nif153eMk">
+{
+"@context": "http://schema.org",
+"@type": "Organization",
+"url": "https://www.booking.com",
+"logo": "https://cf.bstatic.com/static/img/booking_logo_knowledge_graph/247454a990efac1952e44dddbf30c58677aa0fd8.png"
+}
+</script>
+<link nonce="le6bD1nif153eMk" data-chunk="client" rel="stylesheet" href="https://cf.bstatic.com/psb/capla/static/css/bui-react.88121ad4.css"><link nonce="le6bD1nif153eMk" data-chunk="src-components-MerchCarousel" rel="stylesheet" href="https://cf.bstatic.com/psb/capla/static/css/382.6f06c4ae.chunk.css"><link nonce="le6bD1nif153eMk" data-chunk="src-components-DestinationPostcardsMobile-DestinationPostcardsMobileExp" rel="stylesheet" href="https://cf.bstatic.com/psb/capla/static/css/644.1a2a2690.chunk.css"><link nonce="le6bD1nif153eMk" data-chunk="src-components-SimilarPropertiesCarousel" rel="stylesheet" href="https://cf.bstatic.com/psb/capla/static/css/348.a5516ffa.chunk.css"><link nonce="le6bD1nif153eMk" data-chunk="src-components-TripTypesCarousel" rel="stylesheet" href="https://cf.bstatic.com/psb/capla/static/css/534.0bb6e3a7.chunk.css"><link nonce="le6bD1nif153eMk" data-chunk="src-components-HeroBanner-HeroBannerMobile" rel="stylesheet" href="https://cf.bstatic.com/psb/capla/static/css/533.85d6c1aa.chunk.css"><link nonce="le6bD1nif153eMk" data-chunk="src-components-RecentlyViewedPropertiesCarousel" rel="stylesheet" href="https://cf.bstatic.com/psb/capla/static/css/84.558ad0a2.chunk.css"><link nonce="le6bD1nif153eMk" data-chunk="src-components-UniqueStaysProperties" rel="stylesheet" href="https://cf.bstatic.com/psb/capla/static/css/224.cdb79692.chunk.css"><link nonce="le6bD1nif153eMk" data-chunk="bookingcom-genius-credit-book-and-unlock-mfe-pages-GeniusVipCampaignsIndexBanner-GeniusVipCampaignsIndexBanner" rel="stylesheet" href="https://cf.bstatic.com/psb/capla/static/css/186.5332db14.chunk.css"><link nonce="le6bD1nif153eMk" data-chunk="src-components-GeniusSignInBanner-GeniusSignInBanner" rel="stylesheet" href="https://cf.bstatic.com/psb/capla/static/css/527.44af578a.chunk.css"><link nonce="le6bD1nif153eMk" data-chunk="src-components-SecondaryBanner-SecondaryBannerMobile" rel="stylesheet" href="https://cf.bstatic.com/psb/capla/static/css/546.af30ab04.chunk.css"><link nonce="le6bD1nif153eMk" data-chunk="src-components-BHAwarenessBanner-BHAwarenessBanner" rel="stylesheet" href="https://cf.bstatic.com/psb/capla/static/css/119.c364505e.chunk.css"><link nonce="le6bD1nif153eMk" data-chunk="src-components-RecentSearchesCarousel" rel="stylesheet" href="https://cf.bstatic.com/psb/capla/static/css/223.a4542821.chunk.css"><link nonce="le6bD1nif153eMk" data-chunk="src-components-HomesGuestsLoveCarousel" rel="stylesheet" href="https://cf.bstatic.com/psb/capla/static/css/76.0dfe0c18.chunk.css"><link nonce="le6bD1nif153eMk" data-chunk="bookingcom-web-shell-header-mfe-components-AccommodationHeader" rel="stylesheet" href="https://cf.bstatic.com/psb/capla/static/css/93.4005a62b.chunk.css"><link nonce="le6bD1nif153eMk" data-chunk="src-components-GlobalAlerts" rel="stylesheet" href="https://cf.bstatic.com/psb/capla/static/css/880.a524721a.chunk.css">
+<title>
+Booking.com | Site officiel | Hôtels, vols, voitures de location et hébergements
+</title>
+<meta name="description" content="Avec Booking.com, économisez sur les hôtels, maisons, vols, voitures de location, taxis et attractions. Des voyages parfaits pour tous les budgets." />
+<meta name="keywords" content="hébergement, logement, Hôtel, Hôtels, Offres spéciales, promotions, offres week-ends, Prix compétitifs, réductions, prix bon marché" />
+<meta name="robots" content="index,follow" />
+<link rel="canonical" href="https://www.booking.com/index.fr.html" />
+<meta name="booking-verification" content="UmFuZG9tSVbmRXWfmjRldIUkGDweQg6UZWRuuRfV0L7-2A4wSw20AGmgVA4A3ENqyCsyWb87AxX-KLLZDp-5blRuS044CHMVOCeMzH0U7UiUKYnWz8T4kG5nxA1NYWM6c6oLzELUjLirYhx8-WOgPldLUx0xKSYIn6CTezwQpXMU-YuNyI5PKBM6_L-RfKKzNVX2LqVasDnpMcY2UhdBJmveOmGteuUxVOhrvO3LuF51JacghPr4vLgjP419QpMUDb-_WbxX-iwjEPscylHdUqhRMT0omEJ8QsYx21tTQPQi1XnFAuF5FwOBT9Mde61g_4WE3BvS1zZ2441El9ADeuaFPrxm22M-KtyPd4s1HEFtN5wXsT0oa584uh7Bf5NNeV-CDWOvios" />
+<meta name="twitter:app:id:iphone" content="367003839" />
+<meta name="twitter:app:name:ipad" content="Booking.com Hotel Reservations Worldwide & Hotel Deals" />
+<meta name="twitter:app:id:ipad" content="367003839" />
+<meta name="twitter:app:name:googleplay" content="Booking.com Hotel Reservations" />
+<meta name="twitter:app:id:googleplay" content="com.booking" />
+<meta property="al:ios:app_store_id" content="367003839">
+<meta property="al:ios:app_name" content="Booking.com Hotel Reservations">
+<meta property="al:android:app_name" content="Booking.com Hotel Reservation">
+<meta property="al:android:package" content="com.booking">
+<meta property="al:ios:url" content="booking://home_page?affiliate_id=375119&source=gen173nr-1VCAEoggI46AdIDVgEaJEBiAECmAENuAEJ0gEHd2Vidmlld9gBAegBAfgBAogCAagCA7gC4_-OpQbAAgLSAiQ2NDVhYjI2Zi1mMDNlLTQ4ZTEtOWVmMC0wMTc5OGYwNWQyMWXYAgbgAgE" />
+<meta property="al:android:url" content="booking://?affiliate_id=1146884&source=gen173nr-1VCAEoggI46AdIDVgEaJEBiAECmAENuAEJ0gEHd2Vidmlld9gBAegBAfgBAogCAagCA7gC4_-OpQbAAgLSAiQ2NDVhYjI2Zi1mMDNlLTQ4ZTEtOWVmMC0wMTc5OGYwNWQyMWXYAgbgAgE" />
+<meta name="apple-touch-fullscreen" content="yes">
+<meta name="apple-mobile-web-app-capable" content="no" />
+<meta name="google-site-verification" content="i6HUBGnQ0noKOwbQdplRdXJge6D0TpfBpeswdzG38S8" />
+<meta name="google-site-verification" content="tla2duzLAGElK5X2_BVuEGfd6Uj5PUcVZ99z_RHAGHo" />
+<meta name="seznam-wmt" content="mR3BMuBQ2CDsSGup6TTtuHXBYvtCZwOI" />
+<meta name="naver-site-verification" content="e592421d6b2759b6ee618e8f102babe7a722b18c" />
+<meta name="sogou_site_verification" content="DTBkjoPXLT"/>
+<meta name="360-site-verification" content="426c0fa14aaee970db0fa687f7361c84" />
+<meta name="shenma-site-verification" content="4e703a72c5a92fafdcf3dc553f1bfe46_1546595900"/>
+<meta name="format-detection" content="telephone=no">
+<link rel="icon" href="https://cf.bstatic.com/static/img/favicon/9ca83ba2a5a3293ff07452cb24949a5843af4592.svg" type="image/svg+xml">
+<link rel="icon" href="https://cf.bstatic.com/static/img/favicon/4a3b40c4059be39cbf1ebaa5f97dbb7d150926b9.png" type="image/png" sizes="192x192">
+<link rel="icon" href="https://cf.bstatic.com/static/img/favicon/40749a316c45e239a7149b6711ea4c48d10f8d89.ico" sizes="32x32">
+<link rel="apple-touch-icon" href="https://cf.bstatic.com/static/img/apple-touch-icon/5db9fd30d96b1796883ee94be7dddce50b73bb38.png" />
+</head>
+<body id="b2indexPage" class="bookings2 index colada fr b_lang_fr new_cta not_webview supportsfixed sevenup  ltr  mobile_progressive_device  offline-message-alternative landing  bp-temp-old-base  site_is_mdot m_neutral_bg"
+data-bui-theme="traveller-light"
+>
+<svg style="display: none"><symbol id="icon-iconset-dropdown" viewBox="0 0 128 128" role="presentation" aria-hidden="true" focusable="false"><path d="M92 52a4 4 0 0 1-2.8-1.2L64 25.7 38.8 50.8a4 4 0 0 1-5.6-5.6L64 14.3l30.8 30.9A4 4 0 0 1 92 52zm0 24a4 4 0 0 0-2.8 1.2L64 102.3 38.8 77.2a4 4 0 0 0-5.6 5.6L64 113.7l30.8-30.9A4 4 0 0 0 92 76z"/></symbol><symbol id="icon-iconset-magnifying_glass_bold" viewBox="0 0 128 128" role="presentation" aria-hidden="true" focusable="false"><path d="M117.7 106.3l-31-31a8 8 0 0 0-7.7-2 40 40 0 1 0-5.7 5.7 8 8 0 0 0 2 7.7l31 31a8 8 0 0 0 11.4-11.3zM48 72a24 24 0 1 1 24-24 24 24 0 0 1-24 24z"/></symbol></svg>
+<script nonce="le6bD1nif153eMk">window.lzimg && lzimg('loading')</script>
+<div
+id="main_container"
+>
+<div id="main_content" class="
+js-main-content
+wcu_m_container
+  "
+>
+<div data-capla-component="b-index-lp-web-mfe/TravellerHeader" data-capla-namespace="b-index-lp-web-mfeNTWYGbBI"><div class="web-shell-header-mfe" data-testid="web-shell-header-mfe"><header class=" b4ea8459d6"><nav class="c20fd9b542"><div class="f9966e6860"><div class="a945757098"><span data-testid="header-logo"><a data-testid="header-booking-logo" aria-label="Booking.com" href="https://www.booking.com/index.fr.html?aid=304142&amp;label=gen173nr-1FCAEoggI46AdIDVgEaJEBiAECmAENuAEJ0gEHd2Vidmlld9gBAegBAfgBAogCAagCA7gC4_-OpQbAAgHSAiQ2NDVhYjI2Zi1mMDNlLTQ4ZTEtOWVmMC0wMTc5OGYwNWQyMWXYAgXgAgE&amp;sid=5edadf6c9d2160f1890656864b67336e&amp;" class="fc63351294"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 180 30"><path fill="#fff" d="M70.6 2.73999C70.602 2.19808 70.7646 1.66892 71.0673 1.21943C71.3701 0.769947 71.7993 0.420321 72.3007 0.214768C72.8021 0.00921437 73.3532 -0.0430342 73.8843 0.064629C74.4155 0.172292 74.9027 0.435032 75.2845 0.819622C75.6663 1.20421 75.9255 1.69338 76.0293 2.22527C76.133 2.75716 76.0768 3.30788 75.8676 3.80779C75.6584 4.3077 75.3056 4.73434 74.8539 5.03377C74.4022 5.3332 73.8719 5.49197 73.33 5.48999C72.9702 5.48868 72.6141 5.41651 72.2822 5.2776C71.9503 5.13869 71.649 4.93576 71.3955 4.6804C71.1419 4.42504 70.9412 4.12225 70.8047 3.78931C70.6683 3.45637 70.5987 3.09982 70.6 2.73999V2.73999ZM116.5 23.77C117.044 23.772 117.577 23.6124 118.031 23.3114C118.484 23.0104 118.838 22.5816 119.048 22.0793C119.257 21.577 119.313 21.0238 119.208 20.4897C119.103 19.9555 118.842 19.4646 118.458 19.079C118.074 18.6934 117.584 18.4305 117.05 18.3236C116.516 18.2167 115.963 18.2705 115.46 18.4784C114.957 18.6862 114.527 19.0387 114.224 19.4911C113.922 19.9436 113.76 20.4757 113.76 21.02C113.76 21.7476 114.048 22.4456 114.562 22.961C115.075 23.4764 115.772 23.7673 116.5 23.77V23.77ZM25.7 6.72999C24.0129 6.74775 22.3688 7.26426 20.9746 8.21447C19.5805 9.16469 18.4986 10.5061 17.8653 12.0699C17.2319 13.6337 17.0754 15.3499 17.4154 17.0025C17.7554 18.6551 18.5767 20.1701 19.776 21.3569C20.9752 22.5436 22.4988 23.349 24.1548 23.6717C25.8108 23.9944 27.5253 23.8199 29.0824 23.1702C30.6395 22.5205 31.9695 21.4247 32.9051 20.0206C33.8406 18.6166 34.3399 16.9672 34.34 15.28C34.3768 14.1396 34.1778 13.0038 33.7555 11.9438C33.3331 10.8839 32.6965 9.92248 31.8855 9.11989C31.0744 8.3173 30.1064 7.69078 29.0421 7.27955C27.9778 6.86831 26.84 6.68122 25.7 6.72999V6.72999ZM25.7 19.83C23.35 19.83 21.7 17.96 21.7 15.28C21.7 12.6 23.34 10.73 25.7 10.73C28.06 10.73 29.7 12.6 29.7 15.28C29.7 17.96 28.11 19.83 25.7 19.83ZM65.3 15.71C65.1321 15.3716 64.9128 15.0613 64.65 14.79L64.5 14.63L64.66 14.48C64.9116 14.2078 65.1423 13.917 65.35 13.61L69.74 7.05999H64.41L61.1 12.19C60.9586 12.3442 60.782 12.4621 60.5852 12.5334C60.3885 12.6048 60.1774 12.6277 59.97 12.6H59.22V2.90999C59.22 0.979993 58.01 0.709993 56.71 0.709993H54.48V23.58H59.21V16.72H59.65C60.19 16.72 60.56 16.78 60.73 17.08L63.35 21.97C63.5773 22.5089 63.9785 22.9563 64.4895 23.2408C65.0006 23.5253 65.5922 23.6306 66.17 23.54H69.8L67.09 19.07L65.3 15.71ZM88.27 6.68999C87.3747 6.67014 86.4851 6.83782 85.6584 7.18226C84.8318 7.5267 84.0863 8.04028 83.47 8.68999L83.18 8.97999L83.08 8.57999C82.9261 8.08803 82.6021 7.66692 82.166 7.39207C81.7299 7.11723 81.2102 7.0066 80.7 7.07999H78.57V23.57H83.29V15.97C83.275 15.2919 83.373 14.6159 83.58 13.97C83.7979 13.1302 84.2923 12.3883 84.9836 11.8639C85.6748 11.3396 86.5225 11.0634 87.39 11.08C88.85 11.08 89.39 11.85 89.39 13.86V21.05C89.335 21.3921 89.3619 21.7424 89.4686 22.072C89.5753 22.4017 89.7586 22.7013 90.0036 22.9463C90.2487 23.1914 90.5483 23.3747 90.878 23.4814C91.2076 23.5881 91.5579 23.615 91.9 23.56H94.12V13.07C94.15 8.89999 92.12 6.68999 88.27 6.68999V6.68999ZM73.39 7.05999H71.17V23.58H75.87V9.57999C75.9234 9.24041 75.8964 8.89304 75.7913 8.56576C75.6862 8.23848 75.5058 7.94038 75.2647 7.69537C75.0236 7.45037 74.7284 7.26527 74.4028 7.15493C74.0773 7.04459 73.7304 7.01208 73.39 7.05999V7.05999ZM44.16 6.72999C42.4729 6.74775 40.8288 7.26426 39.4346 8.21447C38.0405 9.16469 36.9586 10.5061 36.3253 12.0699C35.6919 13.6337 35.5354 15.3499 35.8754 17.0025C36.2154 18.6551 37.0367 20.1701 38.236 21.3569C39.4352 22.5436 40.9588 23.349 42.6148 23.6717C44.2708 23.9944 45.9853 23.8199 47.5424 23.1702C49.0995 22.5205 50.4295 21.4247 51.3651 20.0206C52.3006 18.6166 52.7999 16.9672 52.8 15.28C52.8368 14.1396 52.6378 13.0038 52.2155 11.9438C51.7931 10.8839 51.1565 9.92248 50.3455 9.11989C49.5344 8.3173 48.5664 7.69078 47.5021 7.27955C46.4378 6.86831 45.3 6.68122 44.16 6.72999V6.72999ZM44.16 19.83C41.81 19.83 40.16 17.96 40.16 15.28C40.16 12.6 41.8 10.73 44.16 10.73C46.52 10.73 48.16 12.6 48.16 15.28C48.16 17.96 46.57 19.83 44.16 19.83ZM144.89 6.72999C143.203 6.74775 141.559 7.26426 140.165 8.21447C138.77 9.16469 137.689 10.5061 137.055 12.0699C136.422 13.6337 136.265 15.3499 136.605 17.0025C136.945 18.6551 137.767 20.1701 138.966 21.3569C140.165 22.5436 141.689 23.349 143.345 23.6717C145.001 23.9944 146.715 23.8199 148.272 23.1702C149.829 22.5205 151.16 21.4247 152.095 20.0206C153.031 18.6166 153.53 16.9672 153.53 15.28C153.567 14.1396 153.368 13.0038 152.945 11.9438C152.523 10.8839 151.887 9.92248 151.075 9.11989C150.264 8.3173 149.296 7.69078 148.232 7.27955C147.168 6.86831 146.03 6.68122 144.89 6.72999V6.72999ZM144.89 19.83C142.54 19.83 140.89 17.96 140.89 15.28C140.89 12.6 142.53 10.73 144.89 10.73C147.25 10.73 148.89 12.6 148.89 15.28C148.89 17.96 147.3 19.83 144.89 19.83ZM109.74 7.01999C109.356 6.98285 108.97 7.05749 108.627 7.23491C108.285 7.41233 108.001 7.68497 107.81 8.01999L107.69 8.26999L107.47 8.07999C106.253 7.08344 104.711 6.57072 103.14 6.63999C98.75 6.63999 95.78 9.94999 95.78 14.87C95.78 19.79 98.85 23.22 103.23 23.22C104.521 23.2791 105.795 22.9061 106.85 22.16L107.21 21.88V22.34C107.21 24.55 105.78 25.77 103.21 25.77C102.131 25.755 101.062 25.5555 100.05 25.18C99.8562 25.0813 99.6419 25.0295 99.4244 25.0287C99.2069 25.0279 98.9923 25.0782 98.7977 25.1754C98.6032 25.2727 98.4342 25.4143 98.3043 25.5887C98.1745 25.7632 98.0874 25.9657 98.05 26.18L97.14 28.46L97.47 28.63C99.2593 29.5195 101.232 29.9783 103.23 29.97C107.23 29.97 111.9 27.91 111.9 22.14V7.01999H109.74ZM104.06 19.11C101.5 19.11 100.58 16.86 100.58 14.76C100.58 13.83 100.81 10.76 103.81 10.76C105.3 10.76 107.3 11.18 107.3 14.86C107.3 18.38 105.54 19.11 104.06 19.11ZM13.09 11.85L12.4 11.47L13 10.97C13.6103 10.4334 14.0951 9.76919 14.42 9.02435C14.7449 8.27951 14.9019 7.47231 14.88 6.65999C14.88 3.05999 12.09 0.739993 7.79 0.739993H2.31C1.69606 0.762953 1.11431 1.02048 0.684566 1.45953C0.254821 1.89857 0.00981021 2.48571 0 3.09999L0 23.5H7.88C12.67 23.5 15.77 20.89 15.77 16.84C15.8104 15.8446 15.583 14.8566 15.1116 13.9789C14.6403 13.1012 13.9421 12.3661 13.09 11.85V11.85ZM4.37 6.07999C4.37 5.01999 4.82 4.51999 5.8 4.45999H7.8C8.16093 4.42761 8.52456 4.47504 8.8651 4.59892C9.20565 4.7228 9.51476 4.9201 9.77052 5.17681C10.0263 5.43353 10.2224 5.74338 10.345 6.08438C10.4676 6.42538 10.5137 6.78919 10.48 7.14999C10.5194 7.51629 10.4791 7.88679 10.3616 8.23598C10.2442 8.58517 10.0524 8.90477 9.79964 9.17277C9.54684 9.44077 9.23898 9.65082 8.89723 9.78844C8.55549 9.92606 8.18798 9.988 7.82 9.96999H4.37V6.07999ZM8.2 19.64H4.37V15.06C4.37 14.06 4.76 13.57 5.59 13.45H8.2C8.99043 13.4949 9.7337 13.8406 10.2774 14.4161C10.8211 14.9916 11.124 15.7533 11.124 16.545C11.124 17.3367 10.8211 18.0984 10.2774 18.6739C9.7337 19.2494 8.99043 19.595 8.2 19.64ZM174.53 6.73999C173.558 6.74366 172.6 6.96575 171.726 7.38984C170.852 7.81393 170.084 8.42915 169.48 9.18999L169.14 9.62999L168.87 9.13999C168.437 8.355 167.787 7.71128 166.998 7.2857C166.209 6.86012 165.314 6.67067 164.42 6.73999C163.604 6.75328 162.798 6.93308 162.054 7.26838C161.309 7.60368 160.641 8.08742 160.09 8.68999L159.65 9.16999L159.48 8.53999C159.323 8.07152 159.008 7.67282 158.587 7.41334C158.167 7.15386 157.669 7.05005 157.18 7.11999H155.18V23.57H159.64V16.31C159.646 15.6629 159.727 15.0187 159.88 14.39C160.31 12.63 161.49 10.74 163.47 10.93C164.69 11.05 165.29 11.99 165.29 13.82V23.57H169.81V16.31C169.791 15.6345 169.875 14.9601 170.06 14.31C170.42 12.64 171.65 10.92 173.56 10.92C174.94 10.92 175.45 11.7 175.45 13.81V21.17C175.45 22.83 176.19 23.57 177.85 23.57H180V13.07C180 8.86999 178.15 6.73999 174.53 6.73999ZM133.69 17.86C132.51 19.095 130.913 19.8471 129.21 19.97C128.593 20.0073 127.974 19.914 127.395 19.6962C126.816 19.4784 126.29 19.141 125.85 18.706C125.41 18.271 125.067 17.7482 124.843 17.1716C124.619 16.5951 124.519 15.9778 124.55 15.36C124.498 14.7504 124.575 14.1365 124.776 13.5588C124.978 12.981 125.299 12.4524 125.719 12.0076C126.14 11.5629 126.649 11.212 127.215 10.978C127.78 10.744 128.388 10.6322 129 10.65C129.84 10.65 130.8 10.95 130.95 11.46V11.55C131.048 11.8986 131.258 12.2056 131.547 12.424C131.835 12.6425 132.188 12.7605 132.55 12.76H135V10.61C135 7.76999 131.39 6.73999 129 6.73999C123.81 6.73999 120 10.37 120 15.35C120 20.33 123.73 23.97 128.86 23.97C130.178 23.9562 131.479 23.6722 132.683 23.1355C133.887 22.5989 134.969 21.821 135.86 20.85L134 17.58L133.69 17.86Z"></path></svg></a></span></div></div><div class="a1b3f50dcd be36d14cea b2fe1a41c3 db7f07f643 c7b46bab72"><span class="cb5ebe3ffb"><a aria-expanded="false" aria-label="Se connecter ou créer un compte" data-testid="header-small-sign-in-button" href="https://account.booking.com/auth/oauth2?client_id=vO1Kblk7xX9tUn2cpZLS&amp;redirect_uri=https%3A%2F%2Fsecure.booking.com%2Flogin.html%3Fop%3Doauth_return&amp;response_type=code&amp;lang=fr&amp;aid=304142&amp;bkng_action=index&amp;prompt=signin&amp;dt=1688453092171&amp;state=UsAB4D6UPWIlDO0jKIa4lridT9zPOGDfSq_9N8KL01Cmpq8LFJCpBJIwX4_bmedEM5yfrIVsAvtSZkAf6kA08Z2fm4ATqYhuHqZrkYi5eUwYQc_CoKxsTaoy1M_G1TlfmAWwT98omG3oipwT4dr4mDt7O5zu-2ASHoVWUm7-CeajvXZ1Gj0JO70xjEiXcdTeQa8Aryec_rCXWXHQosQAQH13MC2XyY5s27i7DmXLGo-zyprYQ5ZBSVicrHHtOyYhed_f*eyJpZCI6InRyYXZlbGxlcl9oZWFkZXIiLCJkYXRhIjp7ImREZlBKS1NDWURUTFVlWEtiRWZQWUJCVllZVCI6eyJzMSI6NCwiczIiOjV9fX0%3D"
+ class="fc63351294 a822bdf511 e3c025e003 cfb238afa1 c334e6f658 e634344169 js-header-login-link"><span class="e57ffa4eb5"><div class="dd9784d118"><span class="b6dc9a9e69 ec1b6253a6" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M16.5 9.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0zm1.5 0a6 6 0 1 0-12 0 6 6 0 0 0 12 0zm1.445 10.597c-4.086-4.111-10.732-4.132-14.844-.046l-.046.046a.75.75 0 0 0 1.064 1.058l.04-.04a8.996 8.996 0 0 1 12.722.04.75.75 0 0 0 1.064-1.058zM22.5 12c0 5.799-4.701 10.5-10.5 10.5S1.5 17.799 1.5 12 6.201 1.5 12 1.5 22.5 6.201 22.5 12zm1.5 0c0-6.627-5.373-12-12-12S0 5.373 0 12s5.373 12 12 12 12-5.373 12-12z"></path></svg></span><div class="d8eab2cf7f ef51f249b1 a503d8d0e2 a2ba4e7f47"></div></div></span></a></span><div class="bb0b3e18ca d9b0185ac2"><button aria-label="Menu" data-testid="header-mobile-menu-button" type="button" class="fc63351294 a822bdf511 e3c025e003 fa565176a8 cfb238afa1 c334e6f658 e634344169"><span class="b9def0936d"><span class="b6dc9a9e69 e6c50852bd" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M2.25 18.753h19.5a.75.75 0 0 0 0-1.5H2.25a.75.75 0 0 0 0 1.5zm0-6h19.5a.75.75 0 0 0 0-1.5H2.25a.75.75 0 0 0 0 1.5zm0-6h19.5a.75.75 0 0 0 0-1.5H2.25a.75.75 0 0 0 0 1.5z"></path></svg></span></span></button></div></div></nav><nav data-testid="header-xpb" aria-label="Que recherchez-vous ?" aria-owns="accommodations flights cars attractions airport_taxis" class="fb995cecb1 f61b048379 f7a80ddfd4"><div class="bc13adc8ab b2c0e7d253"><ul class="e20caabacb"><li class="d7ba686b8a e69171d050"><a id="accommodations" aria-current="page" aria-controls="accommodations" tabindex="0" href="https://www.booking.com/index.fr.html?aid=304142&amp;label=gen173nr-1FCAEoggI46AdIDVgEaJEBiAECmAENuAEJ0gEHd2Vidmlld9gBAegBAfgBAogCAagCA7gC4_-OpQbAAgHSAiQ2NDVhYjI2Zi1mMDNlLTQ4ZTEtOWVmMC0wMTc5OGYwNWQyMWXYAgXgAgE&amp;sid=5edadf6c9d2160f1890656864b67336e&amp;" class="fc63351294 fa030f4cc2 f44d43bbc4 d4e373d880"><span class="b6dc9a9e69 ff00c05ba0 e6c50852bd" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M2.75 12h18.5c.69 0 1.25.56 1.25 1.25V18l.75-.75H.75l.75.75v-4.75c0-.69.56-1.25 1.25-1.25zm0-1.5A2.75 2.75 0 0 0 0 13.25V18c0 .414.336.75.75.75h22.5A.75.75 0 0 0 24 18v-4.75a2.75 2.75 0 0 0-2.75-2.75H2.75zM0 18v3a.75.75 0 0 0 1.5 0v-3A.75.75 0 0 0 0 18zm22.5 0v3a.75.75 0 0 0 1.5 0v-3a.75.75 0 0 0-1.5 0zm-.75-6.75V4.5a2.25 2.25 0 0 0-2.25-2.25h-15A2.25 2.25 0 0 0 2.25 4.5v6.75a.75.75 0 0 0 1.5 0V4.5a.75.75 0 0 1 .75-.75h15a.75.75 0 0 1 .75.75v6.75a.75.75 0 0 0 1.5 0zm-13.25-3h7a.25.25 0 0 1 .25.25v2.75l.75-.75h-9l.75.75V8.5a.25.25 0 0 1 .25-.25zm0-1.5A1.75 1.75 0 0 0 6.75 8.5v2.75c0 .414.336.75.75.75h9a.75.75 0 0 0 .75-.75V8.5a1.75 1.75 0 0 0-1.75-1.75h-7z"></path></svg></span><div class="a1b3f50dcd be36d14cea b2fe1a41c3 db7f07f643"><span class="db29ecfbe2">Hébergements</span></div></a></li><li class="d7ba686b8a"><a id="flights" aria-controls="flights" tabindex="0" href="https://booking.com/pxgo?label=gen173nr-1FCAEoggI46AdIDVgEaJEBiAECmAENuAEJ0gEHd2Vidmlld9gBAegBAfgBAogCAagCA7gC4_-OpQbAAgHSAiQ2NDVhYjI2Zi1mMDNlLTQ4ZTEtOWVmMC0wMTc5OGYwNWQyMWXYAgXgAgE&amp;lang=fr&amp;token=UmFuZG9tSVYkc2RlIyh9Yb5s-oRzgw76bcWUd8wbcu9ikvrUMUgHcbr6wPaXijmEX9-1VZ5gOHuz9ribtB6rLafvbkXguPznRItiPFGLnDEU1nR6bMdyEPaRXpptadVFiRnQO51rISl6WuCwd4Kubg8-SkP1Pxi-ILuX-GQwc8Y7UZdsaWNETcZ-vn54wy9EKHqIPjRRhVJ1y9hZBHbtF5rgkoqvIpONbNgEUCMJPc22QTRI-GIpbf5kL2gztH97GFg8ljCYiifq-YpC0KLA0M0uymYBQtKiqiT8oC3BElo3ZC_0L6P9w4CyuDTveAwGkH7x0M8zDFzMdjH5lV9HwzjS538tVJkS6G9SevEU9fDXhKi8dUmI5THS9HC7DYg6__vVefBpKVeTBaYs9L3r9_9JCSavjNQ1FB168Wz2Gh6ntJPN5s_xRKmUih2LTwNj6cvVJWGm-yiqWHQyaHG4blBYwurSj7kly4bM_F-6AcL6lwRflrn7WabZi5Xvrm-McAFf4kLYl2w&amp;aid=304142&amp;url=https%3A%2F%2Fbooking.kayak.com%2Fin%3Fsid%3D5edadf6c9d2160f1890656864b67336e%26mc%3DEUR%26bdclc%3Dfr%26p%3Dsearchbox_link%26a%3Dbdc%252Fsearchbox" class="fc63351294 fa030f4cc2 d4e373d880"><span class="b6dc9a9e69 ff00c05ba0 e6c50852bd" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20.505 7.5l-15.266.022.672.415-1.1-2.2a.75.75 0 0 0-.638-.414l-2.293-.1C.82 5.228-.003 6.06.003 7.083c.002.243.051.484.146.709l2.072 4.68a2.947 2.947 0 0 0 2.701 1.778h4.043l-.676-1.075-2.484 5.168A1.831 1.831 0 0 0 7.449 21h2.099a1.85 1.85 0 0 0 1.419-.664l5.165-6.363-.582.277h4.956c1.82.09 3.399-1.341 3.49-3.198l.004-.134a3.426 3.426 0 0 0-3.44-3.419l-.074.001zm.02 1.5h.042a1.924 1.924 0 0 1 1.933 1.914l-.002.065a1.866 1.866 0 0 1-1.955 1.772l-4.993-.001a.75.75 0 0 0-.582.277l-5.16 6.355a.346.346 0 0 1-.26.118h-2.1a.336.336 0 0 1-.3-.49l2.493-5.185a.75.75 0 0 0-.676-1.075H4.924a1.45 1.45 0 0 1-1.328-.878l-2.07-4.676a.35.35 0 0 1 .326-.474l2.255.1-.638-.415 1.1 2.2a.75.75 0 0 0 .672.415L20.507 9zM16.323 7.76l-2.992-4.02A1.851 1.851 0 0 0 11.85 3H9.783a1.85 1.85 0 0 0-1.654 2.672l1.439 2.91a.75.75 0 0 0 1.344-.664L9.472 5.007a.351.351 0 0 1 .312-.507h2.066a.35.35 0 0 1 .279.14l2.99 4.017a.75.75 0 1 0 1.203-.896z"></path></svg></span><div class="a1b3f50dcd be36d14cea b2fe1a41c3 db7f07f643"><span class="db29ecfbe2">Vols</span></div></a></li><li class="d7ba686b8a"><a id="cars" aria-controls="cars" tabindex="0" href="https://www.booking.com/cars/index.fr.html?adplat=cross_product_bar&amp;aid=304142&amp;label=gen173nr-1FCAEoggI46AdIDVgEaJEBiAECmAENuAEJ0gEHd2Vidmlld9gBAegBAfgBAogCAagCA7gC4_-OpQbAAgHSAiQ2NDVhYjI2Zi1mMDNlLTQ4ZTEtOWVmMC0wMTc5OGYwNWQyMWXYAgXgAgE&amp;sid=5edadf6c9d2160f1890656864b67336e&amp;" class="fc63351294 fa030f4cc2 d4e373d880"><span class="b6dc9a9e69 ff00c05ba0 e6c50852bd" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21.684 9.443l-1.7-3.79c-.42-1.128-1.542-1.905-2.794-1.903H6.809a2.999 2.999 0 0 0-2.811 1.947L2.316 9.443a.75.75 0 1 0 1.368.614l1.7-3.79c.238-.63.798-1.018 1.424-1.017h10.383a1.5 1.5 0 0 1 1.407.973l1.718 3.834a.75.75 0 1 0 1.368-.614zM.75 16.468V18a2.25 2.25 0 0 0 4.5 0v-1.5a.75.75 0 0 0-1.5 0V18a.75.75 0 0 1-1.5 0v-1.532a.75.75 0 0 0-1.5 0zm21 0V18a.75.75 0 0 1-1.5 0v-1.5a.75.75 0 0 0-1.5 0V18a2.25 2.25 0 0 0 4.5 0v-1.532a.75.75 0 0 0-1.5 0zM19.875 13.5a.375.375 0 0 1-.375-.375.75.75 0 0 0 1.5 0c0-.621-.504-1.125-1.125-1.125a.75.75 0 0 0 0 1.5zm.375-.375a.375.375 0 0 1-.375.375.75.75 0 0 0 0-1.5c-.621 0-1.125.504-1.125 1.125a.75.75 0 0 0 1.5 0zm-.375-.375c.207 0 .375.168.375.375a.75.75 0 0 0-1.5 0c0 .621.504 1.125 1.125 1.125a.75.75 0 0 0 0-1.5zm-.375.375c0-.207.168-.375.375-.375a.75.75 0 0 0 0 1.5c.621 0 1.125-.504 1.125-1.125a.75.75 0 0 0-1.5 0zM4.125 12C3.504 12 3 12.504 3 13.125a.75.75 0 0 0 1.5 0 .375.375 0 0 1-.375.375.75.75 0 0 0 0-1.5zm1.125 1.125c0-.621-.504-1.125-1.125-1.125a.75.75 0 0 0 0 1.5.375.375 0 0 1-.375-.375.75.75 0 0 0 1.5 0zM4.125 14.25c.621 0 1.125-.504 1.125-1.125a.75.75 0 0 0-1.5 0c0-.207.168-.375.375-.375a.75.75 0 0 0 0 1.5zM3 13.125c0 .621.504 1.125 1.125 1.125a.75.75 0 0 0 0-1.5c.207 0 .375.168.375.375a.75.75 0 0 0-1.5 0zM2.75 10.5h18.5c.69 0 1.25.56 1.25 1.25v3.75a.25.25 0 0 1-.25.25H1.75a.25.25 0 0 1-.25-.25v-3.75c0-.69.56-1.25 1.25-1.25zm0-1.5A2.75 2.75 0 0 0 0 11.75v3.75c0 .966.784 1.75 1.75 1.75h20.5A1.75 1.75 0 0 0 24 15.5v-3.75A2.75 2.75 0 0 0 21.25 9H2.75z"></path></svg></span><div class="a1b3f50dcd be36d14cea b2fe1a41c3 db7f07f643"><span class="db29ecfbe2">Voitures de location</span></div></a></li><li class="d7ba686b8a"><a id="attractions" aria-controls="attractions" tabindex="0" href="https://www.booking.com/attractions/index.fr.html?aid=304142&amp;label=gen173nr-1FCAEoggI46AdIDVgEaJEBiAECmAENuAEJ0gEHd2Vidmlld9gBAegBAfgBAogCAagCA7gC4_-OpQbAAgHSAiQ2NDVhYjI2Zi1mMDNlLTQ4ZTEtOWVmMC0wMTc5OGYwNWQyMWXYAgXgAgE&amp;sid=5edadf6c9d2160f1890656864b67336e&amp;" class="fc63351294 fa030f4cc2 d4e373d880"><span class="b6dc9a9e69 ff00c05ba0 e6c50852bd" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13.5 3a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0zM15 3a3 3 0 1 0-6 0 3 3 0 0 0 6 0zm6 4.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0zm1.5 0a3 3 0 1 0-6 0 3 3 0 0 0 6 0zM6 7.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0zm1.5 0a3 3 0 1 0-6 0 3 3 0 0 0 6 0zM21 15a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0zm1.5 0a3 3 0 1 0-6 0 3 3 0 0 0 6 0zm-9-3.75a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0zm1.5 0a3 3 0 1 0-6 0 3 3 0 0 0 6 0zM6 15a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0zm1.5 0a3 3 0 1 0-6 0 3 3 0 0 0 6 0zm10.066 1.277a7.5 7.5 0 0 1-3.077 2.05.75.75 0 0 0 .498 1.415 9 9 0 0 0 3.693-2.46.75.75 0 1 0-1.114-1.005zm1.798-6.466c.177.922.183 1.869.015 2.792a.75.75 0 1 0 1.476.268c.2-1.106.194-2.24-.019-3.344a.75.75 0 1 0-1.472.284zm-5.337-5.784a7.5 7.5 0 0 1 3.54 2.196.75.75 0 0 0 1.113-1.004 9.002 9.002 0 0 0-4.247-2.636.75.75 0 1 0-.406 1.444zM6.434 6.223a7.5 7.5 0 0 1 3.539-2.196.75.75 0 1 0-.406-1.444A9.001 9.001 0 0 0 5.32 5.219a.75.75 0 0 0 1.114 1.004zM4.636 12.69a7.602 7.602 0 0 1 0-2.878.75.75 0 1 0-1.472-.284 9.102 9.102 0 0 0 0 3.446.75.75 0 0 0 1.472-.284zm4.876 5.639a7.517 7.517 0 0 1-3.035-2.005.75.75 0 0 0-1.106 1.014 9.017 9.017 0 0 0 3.641 2.405.75.75 0 1 0 .5-1.414zM7.31 21.872A1.5 1.5 0 0 0 8.672 24h6.656a1.5 1.5 0 0 0 1.362-2.128l-3.314-8.217c-.361-.785-1.252-1.114-2.005-.767a1.5 1.5 0 0 0-.733.734l-3.343 8.283zm1.377.595l3.328-8.25-.015.033 3.313 8.217.015.033H8.672z"></path></svg></span><div class="a1b3f50dcd be36d14cea b2fe1a41c3 db7f07f643"><span class="db29ecfbe2">Attractions</span></div></a></li><li class="d7ba686b8a"><a id="airport_taxis" aria-controls="airport_taxis" tabindex="0" href="https://www.booking.com/taxi/index.fr.html?adplat=cross_product_bar&amp;aid=304142&amp;label=gen173nr-1FCAEoggI46AdIDVgEaJEBiAECmAENuAEJ0gEHd2Vidmlld9gBAegBAfgBAogCAagCA7gC4_-OpQbAAgHSAiQ2NDVhYjI2Zi1mMDNlLTQ4ZTEtOWVmMC0wMTc5OGYwNWQyMWXYAgXgAgE&amp;sid=5edadf6c9d2160f1890656864b67336e&amp;" class="fc63351294 fa030f4cc2 d4e373d880"><span class="b6dc9a9e69 ff00c05ba0 e6c50852bd" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg"
+ viewBox="0 0 24 24"><path d="M21.75 15.5V8a.75.75 0 0 0-1.5 0v7.5a.75.75 0 0 0 1.5 0zm-16.5 0V8a.75.75 0 0 0-1.5 0v7.5a.75.75 0 0 0 1.5 0zM3 8.75h3a.75.75 0 0 0 0-1.5H3a.75.75 0 0 0 0 1.5zm6.75 6.75v-6a.75.75 0 0 1 1.5 0v6a.75.75 0 0 0 1.5 0v-6a2.25 2.25 0 0 0-4.5 0v6a.75.75 0 0 0 1.5 0zM9 13.25h3a.75.75 0 0 0 0-1.5H9a.75.75 0 0 0 0 1.5zm5.304-4.971l3 7.5a.75.75 0 0 0 1.392-.557l-3-7.5a.75.75 0 0 0-1.392.557zm3-.558l-3 7.5a.75.75 0 0 0 1.392.557l3-7.5a.75.75 0 0 0-1.392-.557zM.75 5h22.5a.75.75 0 0 0 0-1.5H.75a.75.75 0 0 0 0 1.5zm0 15h22.5a.75.75 0 0 0 0-1.5H.75a.75.75 0 0 0 0 1.5z"></path></svg></span><div class="a1b3f50dcd be36d14cea b2fe1a41c3 db7f07f643"><span class="db29ecfbe2">Taxis aéroport</span></div></a></li><li class="d7ba686b8a e5305db18a" role="presentation"><span class="cb5ebe3ffb c3de4d2761"><button aria-expanded="false" class="fa030f4cc2" type="button" role="tab">Plus<span class="b6dc9a9e69 eb54845d00 e25355d3ee" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 20.09a1.24 1.24 0 0 1-.88-.36L6 14.61a.75.75 0 1 1 1.06-1.06L12 18.49l4.94-4.94A.75.75 0 0 1 18 14.61l-5.12 5.12a1.24 1.24 0 0 1-.88.36zm6-9.46a.75.75 0 0 0 0-1.06l-5.12-5.11a1.24 1.24 0 0 0-1.754-.006l-.006.006L6 9.57a.75.75 0 0 0 0 1.06.74.74 0 0 0 1.06 0L12 5.7l4.94 4.93a.73.73 0 0 0 .53.22c.2 0 .39-.078.53-.22z"></path></svg></span></button></span></li></ul></div></nav></header></div></div>
+<style>
+.aff--cobrand_header_wrapper.aff--cobrand_header_wrapper--centered {
+background-color: #FFFFFF;
+text-align: center;
+padding: 5px 0px;
+}
+</style>
+<div
+class="
+tabbed-nav--content
+tab-active
+m_lp_container
+wcu_m_container
+"
+data-tab-id="main"
+>
+<svg class="bk-icon -genius-new_identity-genius_badge" height="174" style="display:none;" width="434" viewBox="0 0 434 174" role="presentation" aria-hidden="true" focusable="false">
+<g>
+<path d="M418.964 0H14.6335C6.65829 0 0.193115 6.46518 0.193115 14.4404V158.844C0.193115 166.819 6.65829 173.285 14.6335 173.285H418.964C426.939 173.285 433.404 166.819 433.404 158.844V14.4404C433.404 6.46518 426.939 0 418.964 0Z" fill="#004CB8"/>
+<path d="M375.643 112.057C375.651 112.911 375.418 113.75 374.971 114.478C374.524 115.206 373.881 115.793 373.116 116.173C371.061 117.213 368.774 117.71 366.473 117.617C363.367 117.862 360.262 117.13 357.592 115.523C355.323 114.154 353.571 112.072 352.611 109.602C352.551 109.35 352.431 109.116 352.26 108.921C352.09 108.726 351.874 108.575 351.632 108.483C351.39 108.39 351.129 108.358 350.871 108.39C350.614 108.421 350.368 108.515 350.156 108.664L341.13 112.635C340.869 112.706 340.627 112.837 340.425 113.019C340.223 113.2 340.067 113.426 339.969 113.679C339.87 113.932 339.833 114.205 339.859 114.475C339.885 114.745 339.975 115.005 340.12 115.234C342.038 119.7 345.325 123.441 349.506 125.92C354.638 128.933 360.527 130.412 366.473 130.18C372.448 130.368 378.324 128.621 383.224 125.198C385.473 123.727 387.315 121.711 388.577 119.338C389.839 116.965 390.481 114.312 390.444 111.624C390.444 101.997 383.657 96.1488 370.083 94.079C366.842 93.6288 363.696 92.6533 360.769 91.1909C358.603 90.1801 356.148 88.8082 356.148 87.2198C356.194 86.4783 356.458 85.7669 356.908 85.1757C357.358 84.5845 357.973 84.14 358.676 83.8985C360.848 83.0046 363.187 82.5861 365.535 82.6711C367.779 82.6622 370.001 83.1271 372.054 84.0353C374.107 84.9435 375.945 86.2747 377.448 87.9418C377.63 88.1318 377.849 88.283 378.09 88.3863C378.332 88.4896 378.593 88.5429 378.856 88.5429C379.119 88.5429 379.379 88.4896 379.621 88.3863C379.863 88.283 380.082 88.1318 380.264 87.9418L386.69 82.1657C386.936 82.0362 387.148 81.8492 387.307 81.6204C387.466 81.3917 387.568 81.128 387.603 80.8517C387.639 80.5754 387.607 80.2946 387.511 80.0331C387.415 79.7717 387.257 79.5373 387.051 79.3498C382.053 74.4653 375.569 71.3872 368.625 70.6026C361.681 69.8179 354.673 71.3716 348.712 75.0177C346.74 76.4007 345.146 78.2548 344.074 80.4112C343.002 82.5675 342.487 84.9577 342.574 87.3642C342.567 89.4267 343.001 91.4669 343.848 93.3475C344.695 95.2281 345.935 96.9054 347.484 98.2667C351.292 101.398 355.888 103.422 360.769 104.115C364.771 104.676 368.681 105.769 372.394 107.364C373.334 107.744 374.143 108.391 374.72 109.225C375.297 110.059 375.618 111.043 375.643 112.057Z" fill="white"/>
+<path d="M282.575 107.509C282.412 110.486 282.839 113.467 283.83 116.279C284.821 119.092 286.358 121.681 288.351 123.899C290.419 125.929 292.885 127.51 295.594 128.541C298.303 129.573 301.196 130.032 304.091 129.891C306.536 129.936 308.973 129.595 311.311 128.881C313.006 128.39 314.631 127.686 316.149 126.787C317.577 125.778 318.951 124.693 320.264 123.538L321.636 126.859C321.861 127.389 322.248 127.834 322.74 128.132C323.232 128.43 323.806 128.566 324.38 128.52H333.766C334.021 128.556 334.281 128.532 334.525 128.451C334.769 128.369 334.991 128.232 335.173 128.05C335.355 127.868 335.493 127.646 335.574 127.401C335.656 127.157 335.679 126.897 335.643 126.642V73.7906C335.635 73.5591 335.579 73.3319 335.478 73.1236C335.377 72.9152 335.233 72.7303 335.056 72.5807C334.879 72.4312 334.673 72.3202 334.451 72.255C334.229 72.1898 333.996 72.1718 333.766 72.2021H321.853C321.598 72.166 321.338 72.1897 321.094 72.2712C320.849 72.3528 320.627 72.49 320.445 72.6721C320.263 72.8542 320.126 73.0761 320.044 73.3203C319.963 73.5646 319.939 73.8244 319.975 74.0794V110.18C318.697 112.152 316.942 113.768 314.871 114.879C312.801 115.99 310.484 116.559 308.134 116.534C306.791 116.632 305.442 116.423 304.191 115.922C302.94 115.422 301.82 114.644 300.914 113.646C299.138 111.504 298.235 108.771 298.387 105.993V73.7906C298.387 72.5631 297.665 71.9133 296.365 71.9133H284.596C283.297 71.9133 282.575 72.5631 282.575 73.7906V107.509Z" fill="white"/>
+<path d="M253.983 54.1515C253.968 55.5821 254.25 57.0002 254.809 58.3172C255.368 59.6341 256.193 60.8214 257.232 61.8049C259.299 63.8464 262.088 64.9912 264.993 64.9912C267.899 64.9912 270.688 63.8464 272.755 61.8049C273.786 60.8145 274.606 59.6261 275.166 58.3109C275.726 56.9958 276.015 55.581 276.015 54.1515C276.015 52.722 275.726 51.3073 275.166 49.9921C274.606 48.677 273.786 47.4885 272.755 46.4981C270.688 44.4566 267.899 43.3119 264.993 43.3119C262.088 43.3119 259.299 44.4566 257.232 46.4981C256.193 47.4816 255.368 48.669 254.809 49.9859C254.25 51.3028 253.968 52.7209 253.983 54.1515Z" fill="#FEBB02"/>
+<path d="M247.413 90.7576C247.576 88.0348 247.187 85.307 246.269 82.7384C245.351 80.1699 243.922 77.8137 242.07 75.8118C239.996 73.9613 237.574 72.5422 234.946 71.6373C232.318 70.7324 229.536 70.3597 226.763 70.5411C220.636 70.5809 214.743 72.897 210.229 77.0393L208.64 73.7902C208.475 73.2445 208.126 72.7731 207.652 72.4569C207.177 72.1408 206.608 71.9995 206.041 72.0573H196.366C195.066 72.0573 194.344 72.6349 194.344 73.8624V126.714C194.344 127.942 195.066 128.591 196.366 128.591H208.207C209.507 128.591 210.229 127.942 210.229 126.714V90.6132C211.612 88.8509 213.33 87.3788 215.283 86.2811C217.277 85.0359 219.574 84.3617 221.925 84.3316C228.423 84.3316 231.745 87.7973 231.745 94.8009V126.714C231.745 127.212 231.942 127.69 232.295 128.042C232.647 128.394 233.124 128.591 233.622 128.591H245.68C246.178 128.591 246.655 128.394 247.007 128.042C247.359 127.69 247.557 127.212 247.557 126.714L247.413 90.7576Z" fill="white"/>
+<path d="M187.268 102.527C187.268 103.826 186.691 104.404 185.391 104.404H144.597C145.345 107.742 147.142 110.752 149.723 112.996C152.483 115.254 155.981 116.412 159.543 116.245C161.98 116.337 164.397 115.785 166.552 114.644C168.707 113.503 170.523 111.814 171.817 109.747C172.25 109.025 173.045 108.953 174.055 109.747L184.236 113.935C185.391 114.368 185.68 115.018 185.03 116.029C182.534 120.559 178.83 124.307 174.33 126.857C169.831 129.406 164.711 130.657 159.543 130.469C151.507 130.607 143.735 127.602 137.882 122.094C134.918 119.341 132.584 115.98 131.038 112.242C129.493 108.503 128.774 104.475 128.929 100.433C128.765 96.3962 129.473 92.3715 131.005 88.6333C132.538 84.8952 134.859 81.5317 137.81 78.7724C140.626 76.0576 143.952 73.9264 147.595 72.5015C151.238 71.0765 155.127 70.3858 159.037 70.4692C162.9 70.2694 166.761 70.8864 170.369 72.2798C173.977 73.6732 177.25 75.8117 179.976 78.5558C184.948 84.1113 187.541 91.3968 187.196 98.8446L187.268 102.527ZM167.702 86.6424C165.206 84.7434 162.173 83.682 159.037 83.61C155.941 83.4943 152.894 84.4084 150.373 86.2092C148.049 87.9161 146.288 90.2799 145.319 92.9962H172.539C171.782 90.3459 170.055 88.0777 167.702 86.6424Z" fill="white"/>
+<path d="M122.936 116.823C122.929 117.364 122.802 117.897 122.565 118.384C122.328 118.87 121.986 119.299 121.565 119.638C112.67 126.472 101.733 130.109 90.5177 129.963C78.5996 130.454 66.9709 126.213 58.1662 118.166C49.3615 110.119 44.0949 98.9172 43.5143 87.0032C44.1137 75.0649 49.3736 63.8383 58.1632 55.7373C66.9528 47.6363 78.5702 43.3077 90.5177 43.6821C101.588 43.6164 112.362 47.2503 121.131 54.0069C121.497 54.318 121.729 54.7572 121.781 55.2344C121.822 55.481 121.804 55.7338 121.729 55.9722C121.653 56.2105 121.523 56.4278 121.348 56.6062L112.756 66.4979C112.394 66.838 111.917 67.0274 111.42 67.0274C110.924 67.0274 110.446 66.838 110.084 66.4979C104.621 61.8534 97.6885 59.2953 90.5177 59.2777C83.1063 59.1579 75.9408 61.9357 70.5467 67.0197C65.1526 72.1037 61.9558 79.0923 61.637 86.4978C61.9931 93.8334 65.223 100.734 70.6278 105.706C76.0327 110.679 83.1779 113.323 90.5177 113.068C96.4716 113.09 102.308 111.412 107.341 108.231V96.8227H93.5502C93.3104 96.833 93.071 96.7935 92.8473 96.7065C92.6236 96.6195 92.4204 96.4869 92.2506 96.3173C92.0713 96.151 91.9277 95.9501 91.8284 95.7267C91.7291 95.5033 91.6762 95.2621 91.6729 95.0176V83.4653C91.6949 82.9748 91.9012 82.5107 92.2506 82.1657C92.6133 81.8537 93.072 81.6753 93.5502 81.6603H120.698C121.184 81.6599 121.651 81.8478 122.001 82.1843C122.351 82.5209 122.557 82.9801 122.575 83.4653L122.936 116.823Z" fill="white"/>
+<path d="M264.597 72.2018H258.604C258.106 72.2018 257.629 72.3995 257.276 72.7516C256.924 73.1037 256.727 73.5811 256.727 74.079V127.075C256.727 127.573 256.924 128.051 257.276 128.403C257.629 128.755 258.106 128.952 258.604 128.952H271.384C271.882 128.952 272.359 128.755 272.711 128.403C273.063 128.051 273.261 127.573 273.261 127.075V80.866C273.446 79.686 273.35 78.4789 272.98 77.3432C272.61 76.2075 271.977 75.1753 271.132 74.3307C270.287 73.4861 269.255 72.853 268.119 72.4831C266.984 72.1131 265.777 72.0167 264.597 72.2018Z" fill="white"/>
+</g>
+</svg>
+<svg class="bk-icon -streamline-square_rating" height="128" style="display:none;" width="112" viewBox="0 0 112 128" role="presentation" aria-hidden="true" focusable="false"><path d="M96 8H16A16 16 0 0 0 0 24v96h96a16 16 0 0 0 16-16V24A16 16 0 0 0 96 8zM56 88a24 24 0 1 1 24-24 24 24 0 0 1-24 24z"/></svg>
+<svg class="bk-icon -streamline-circle" height="24" style="display:none;" width="24" viewBox="0 0 24 24" role="presentation" aria-hidden="true" focusable="false"><path d="M24 12c0 6.627-5.373 12-12 12S0 18.627 0 12 5.373 0 12 0s12 5.373 12 12z"/></svg>
+<svg class="bk-icon -streamline-circle_half" height="128" style="display:none;" width="128" viewBox="0 0 128 128" role="presentation" aria-hidden="true" focusable="false"><path d="M64 0C28.654 0 0 28.654 0 64c0 35.346 28.654 64 64 64 35.346 0 64-28.654 64-64 0-35.346-28.654-64-64-64zm0 120V8c30.928 0 56 25.072 56 56s-25.072 56-56 56z"/></svg>
+<svg class="bk-icon -streamline-star" height="24" style="display:none;" width="24" viewBox="0 0 24 24" role="presentation" aria-hidden="true" focusable="false"><path d="M23.555 8.729a1.505 1.505 0 0 0-1.406-.98h-6.087a.5.5 0 0 1-.472-.334l-2.185-6.193a1.5 1.5 0 0 0-2.81 0l-.005.016-2.18 6.177a.5.5 0 0 1-.471.334H1.85A1.5 1.5 0 0 0 .887 10.4l5.184 4.3a.5.5 0 0 1 .155.543l-2.178 6.531a1.5 1.5 0 0 0 2.31 1.684l5.346-3.92a.5.5 0 0 1 .591 0l5.344 3.919a1.5 1.5 0 0 0 2.312-1.683l-2.178-6.535a.5.5 0 0 1 .155-.543l5.194-4.306a1.5 1.5 0 0 0 .433-1.661z"/></svg>
+<svg class="bk-icon -streamline-star_half" height="128" style="display:none;" width="128" viewBox="0 0 128 128" role="presentation" aria-hidden="true" focusable="false"><path d="M126.76 45.92a11.75 11.75 0 0 0-10.93-7.6H85.77L74.93 7.58A11.67 11.67 0 0 0 64 0h-.82c-.23 0-.45 0-.68.07-.23.07-.28 0-.42.06l-.72.15L61 .4c-.36.1-.71.21-1.07.34a11.65 11.65 0 0 0-6.83 6.84L42.25 38.31H12.18a11.67 11.67 0 0 0-11.13 8.18A11.39 11.39 0 0 0 .52 50a11.65 11.65 0 0 0 4.19 9l25.71 21.24-10.81 32.41c-2.024 6.113 1.282 12.711 7.39 14.75.4.13.81.23 1.21.32l.31.06c.39.082.783.139 1.18.17h1.59c.388-.017.776-.054 1.16-.11h.06a9.704 9.704 0 0 0 1.18-.26l.31-.08c.383-.114.76-.247 1.13-.4q.55-.24 1.11-.54l.26-.15c.365-.208.719-.435 1.06-.68L64 106.35l26.43 19.38a11.563 11.563 0 0 0 6.88 2.27c.596.001 1.19-.042 1.78-.13 6.367-.967 10.744-6.911 9.778-13.278-.1-.659-.257-1.309-.468-1.942L97.59 80.22l25.8-21.39a11.7 11.7 0 0 0 3.37-12.91zm-8.52 6.79l-26.52 22a6.59 6.59 0 0 0-2 7.11l11.12 33.37a3.66 3.66 0 0 1-2.95 4.81 3.578 3.578 0 0 1-2.72-.68l-27.29-20-.14-.08a6.781 6.781 0 0 0-.76-.47c-.16-.08-.33-.14-.49-.21-.16-.07-.3-.13-.46-.18-.16-.05-.39-.1-.58-.15L64.06 8a3.61 3.61 0 0 1 3.35 2.3l11.15 31.63a6.58 6.58 0 0 0 6.19 4.38h31.07a3.7 3.7 0 0 1 3.44 2.39 3.66 3.66 0 0 1-1.02 4.01z"/></svg>
+<div class="searchbox_cross_product__title ">
+<h1
+id="form_search_h1"
+class="b-no-tap-highlight
+"
+style=""
+>
+Trouvez votre prochain séjour
+</h1>
+<label class="search_hotels_subtext
+" for="input_destination">
+Recherchez des offres sur des hôtels, des hébergements indépendants et plus encore
+</label>
+</div>
+<div class="searchbox_cross_product_v2">
+<div class="searchbox_cross_product__wrapper ">
+<form
+id="form_search_location"
+class="js-searchbox_redesign searchForm b-no-tap-highlight searchbox_cross_product searchbox_cross_product--overlayed searchbox_cross_product--overlay-loading"
+name="frm"
+action="/searchresults.fr.html?label=gen173nr-1FCAEoggI46AdIDVgEaJEBiAECmAENuAEJ0gEHd2Vidmlld9gBAegBAfgBAogCAagCA7gC4_-OpQbAAgHSAiQ2NDVhYjI2Zi1mMDNlLTQ4ZTEtOWVmMC0wMTc5OGYwNWQyMWXYAgXgAgE&sid=e3d5820e0a17932d2ad5b9150bca4408"
+method="get"
+data-component="searchbox/overlays/controller searchbox/destination/near-me searchbox/dynamic-los/dynamic-max-los "
+>
+<div class="searchbox_cross_product__wrapper-inner">
+<input type="hidden" value="index" name="src">
+<input type="hidden" name="rows" value="20" />
+<input type="hidden" name="error_url" value="https://www.booking.com/index.fr.html?label=gen173nr-1FCAEoggI46AdIDVgEaJEBiAECmAENuAEJ0gEHd2Vidmlld9gBAegBAfgBAogCAagCA7gC4_-OpQbAAgHSAiQ2NDVhYjI2Zi1mMDNlLTQ4ZTEtOWVmMC0wMTc5OGYwNWQyMWXYAgXgAgE&sid=e3d5820e0a17932d2ad5b9150bca4408&sb_price_type=total&&" />
+<input type="hidden" name="label" value="gen173nr-1FCAEoggI46AdIDVgEaJEBiAECmAENuAEJ0gEHd2Vidmlld9gBAegBAfgBAogCAagCA7gC4_-OpQbAAgHSAiQ2NDVhYjI2Zi1mMDNlLTQ4ZTEtOWVmMC0wMTc5OGYwNWQyMWXYAgXgAgE" />
+<input type="hidden" name="lang" value="fr" />
+<input type="hidden" name="sid" value="e3d5820e0a17932d2ad5b9150bca4408" />
+<input type="hidden" name="sb" value="1">
+<input type="hidden" name="sb_lp" value="1">
+<input type="hidden" name="search_form_id" value="bb752f714d360045">
+<div class="searchbox_cross_product__overlay-mask"></div>
+<div class="searchbox_cross_product__section-container"
+data-section-overlayed
+data-section-ovelayed-destination
+role="dialog"
+aria-label="Indiquez la destination"
+>
+<div class="searchbox_cross_product__overlay-container">
+<div class="searchbox_cross_product__overlay-header">
+<h3>Indiquez la destination
+</h3>
+<span class="searchbox_cross_product__overlay-close" data-section-overlay-apply tabindex="0" role="button" aria-label="Fermer"><svg aria-hidden="true" class="bk-icon -iconset-close" fill="#BDBDBD" height="24" width="24"><use xlink:href="#icon-iconset-close"></use></svg></span>
+</div>
+</div>
+<div class="searchbox_cross_product__section searchbox_cross_product__section--destination searchbox_cross_product__section--with-icon dest-input--with-icons ui-autocomplete-root "
+>
+<div id="input_destination_wrap">
+<div class="searchbox_cross_product__section-icon searchbox_cross_product__section-icon--left">
+<svg aria-hidden="true" class="bk-icon -iconset-magnifying_glass_bold" fill="#BDBDBD" focusable="false" height="18" width="18"><use xlink:href="#icon-iconset-magnifying_glass_bold"></use></svg>
+</div>
+<div class="searchbox_cross_product__section-icon searchbox_cross_product__section-icon--right searchbox_cross_product__section-icon--destination-clear input_clear_button"
+>
+<svg class="bk-icon -iconset-close_bold" fill="#BAD4F7" height="18" width="18"><use xlink:href="#icon-iconset-close_bold"></use></svg>
+</div>
+<input type="hidden" name="dest_type" value="city" />
+<input type="hidden" name="dest_id" value="" />
+<input
+type="search"
+id="input_destination"
+name="ss"
+spellcheck="false"
+autocapitalize="off"
+autocorrect="off"
+autocomplete="off"
+class="
+searchbox_cross_product__section-top
+searchbox_cross_product__destination
+js-input_dest
+input_clear_button_input
+"
+aria-label="Veuillez indiquer votre destination ici"
+value=""
+>
+<div class="searchbox_cross_product__section-icon searchbox_cross_product__section-icon--right searchbox_cross_product__section-icon--destination-clear searchbox_cross_product__section-icon--destination-clear-text input_clear_button"
+role="button"
+aria-label="Effacer"
+tabindex="0"
+>
+Effacer
+</div>
+</div>
+<div id="location_loading" style="display: none;">
+<img id="loading_icon" src="https://cf.bstatic.com/mobile/images/hotelMarkerImgLoader/211f81a092a43bf96fc2a7b1dff37e5bc08fbbbf.gif" alt="Chargement de votre position actuelle" />
+Chargement de votre position actuelle
+</div>
+<div id="location_found" style="display: none;">
+<div id="location_found_text">
+Proche de votre emplacement
+</div>
+</div>
+<div
+class="popdest"
+style="display: none"
+>
+<style>
+.popdest{background-color:var(--bui_color_white);display:none}.popdest__list{list-style:none}.popdest__item{position:relative;padding:12px 0 12px 35px;border-bottom:solid 1px #E8E8E8;line-height:1.42}.popdest__item.popdest__item--with-count{padding:4px 0 5px 35px}.rtl .popdest__item{padding:4px 35px 5px 0}.popdest__item-icon{position:absolute;top:50%;margin-top:-15px;padding:0;width:35px;height:30px;line-height:30px;text-align:center;font-size:14px;color:#0071C2}.ltr .popdest__item-icon{left:0}.rtl .popdest__item-icon{right:0}.popdest__item-title{font-size:14px;color:#333333;font-weight:bold;margin-bottom:2px}.popdest__item-count{font-size:12px;color:#AEAEAE;font-weight:normal}.popdest--near-your-location-container{margin-left:-16px;width:-webkit-calc(100% + 32px)}.popdest__near_your_location_icon{padding:20px 0 19px 20px}.popdest__near_your_location_desc{padding:20px 20px 20px 0}.popdest__near_your_location_title{padding-top:15px;padding-bottom:15px}
+</style>
+<div class="bui-inline-container popdest--near-your-location-container" id="popdest--near-your-location">
+<div class="bui-inline-container__start popdest__near_your_location_icon">
+<svg class="bk-icon -streamline-location" fill="#6B6B6B" height="24" width="24"><use xlink:href="#icon-streamline-location"></use></svg>
+</div>
+<div class="bui-inline-container__main">
+<div class="bui-list__description bui-f-font-emphasized popdest__near_your_location_desc">Proche de votre emplacement</div>
+</div>
+</div>
+<hr class="bui-divider" />
+<div class="bui-title bui-title--strong_1 popdest__near_your_location_title">
+<span class="bui-title__text">Destinations populaires à proximité</span>
+</div>
+<ul class="bui-list bui-list--divided bui-list--text bui-list--icon">
+<li class="popdest__item bui-list__item"
+data-title="Antananarivo"
+data-dest-id="-207091"
+data-dest-type="city"
+data-max-los-data='{"max_allowed_los":90,"has_extended_los":1,"is_fullon":0,"default_los":45,"experiment":"BHDTJdReQHUYYOLEaMYYXO","extended_los":90}'
+>
+<span class="bui-list__icon" role="presentation">
+<svg class="bk-icon -streamline-geo_pin" fill="#6B6B6B" height="24" width="24"><use xlink:href="#icon-streamline-geo_pin"></use></svg>
+</span>
+<div class="bui-list__body">
+<div class="bui-title">
+<span class="bui-title__text">Antananarivo</span>
+<span class="bui-title__subtitle">Madagascar</span>
+</div>
+</div>
+</li>
+<li class="popdest__item bui-list__item"
+data-title="Nosy Be"
+data-dest-id="13888"
+data-dest-type="region"
+data-max-los-data='{"experiment":"BHDTJdReQHUYYOLEaMYYXO","extended_los":90,"is_fullon":0,"default_los":45,"has_extended_los":1,"max_allowed_los":90}'
+>
+<span class="bui-list__icon" role="presentation">
+<svg class="bk-icon -streamline-geo_pin" fill="#6B6B6B" height="24" width="24"><use xlink:href="#icon-streamline-geo_pin"></use></svg>
+</span>
+<div class="bui-list__body">
+<div class="bui-title">
+<span class="bui-title__text">Nosy Be</span>
+<span class="bui-title__subtitle">Madagascar</span>
+</div>
+</div>
+</li>
+<li class="popdest__item bui-list__item"
+data-title="Diego Suarez"
+data-dest-id="-208902"
+data-dest-type="city"
+data-max-los-data='{"experiment":"BHDTJdReQHUYYOLEaMYYXO","extended_los":90,"is_fullon":0,"default_los":45,"has_extended_los":1,"max_allowed_los":90}'
+>
+<span class="bui-list__icon" role="presentation">
+<svg class="bk-icon -streamline-geo_pin" fill="#6B6B6B" height="24" width="24"><use xlink:href="#icon-streamline-geo_pin"></use></svg>
+</span>
+<div class="bui-list__body">
+<div class="bui-title">
+<span class="bui-title__text">Diego Suarez</span>
+<span class="bui-title__subtitle">Madagascar</span>
+</div>
+</div>
+</li>
+<li class="popdest__item bui-list__item"
+data-title="Antsirabe"
+data-dest-id="-208865"
+data-dest-type="city"
+data-max-los-data='{"default_los":45,"is_fullon":0,"extended_los":90,"experiment":"BHDTJdReQHUYYOLEaMYYXO","max_allowed_los":90,"has_extended_los":1}'
+>
+<span class="bui-list__icon" role="presentation">
+<svg class="bk-icon -streamline-geo_pin" fill="#6B6B6B" height="24" width="24"><use xlink:href="#icon-streamline-geo_pin"></use></svg>
+</span>
+<div class="bui-list__body">
+<div class="bui-title">
+<span class="bui-title__text">Antsirabe</span>
+<span class="bui-title__subtitle">Madagascar</span>
+</div>
+</div>
+</li>
+<li class="popdest__item bui-list__item"
+data-title="&Icirc;le Sainte-Marie"
+data-dest-id="900052869"
+data-dest-type="city"
+data-max-los-data='{"experiment":"BHDTJdReQHUYYOLEaMYYXO","extended_los":90,"is_fullon":0,"default_los":45,"has_extended_los":1,"max_allowed_los":90}'
+>
+<span class="bui-list__icon" role="presentation">
+<svg class="bk-icon -streamline-geo_pin" fill="#6B6B6B" height="24" width="24"><use xlink:href="#icon-streamline-geo_pin"></use></svg>
+</span>
+<div class="bui-list__body">
+<div class="bui-title">
+<span class="bui-title__text">&Icirc;le Sainte-Marie</span>
+<span class="bui-title__subtitle">Madagascar</span>
+</div>
+</div>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="searchbox_cross_product__overlay-dummy"></div>
+<div class="searchbox_cals_nojs searchbox-calendar-bui"
+data-calendar
+data-auto-open-checkout-calendar="true"
+data-custom-los="90"
+data-calendar-blur="1"
+data-component="searchbox/calendar/wrapper"
+data-force-render="1"
+data-scroll-to-selected-month="1"
+data-calendar-max-date-possible="500"
+>
+<script type="text/html" class="js-cal-inputs" nonce="le6bD1nif153eMk">
+<input type="hidden" name="checkin_monthday" value="4" />
+<input type="hidden" name="checkin_year_month" value="2023-7" />
+<input type="hidden" name="checkout_monthday" value="5" />
+<input type="hidden" name="checkout_year_month" value="2023-7" />
+</script>
+<div class="searchbox_cross_product__section-container searchbox_cross_product__section-container--double"
+data-section-overlayed data-section-overlayed-calendar-trigger
+>
+<div class="searchbox_cross_product__section searchbox_cross_product__section--calendar searchbox_cross_product__section--with-labels " data-has-calendar="checkin" data-calendar-section>
+<div
+class="searchbox_cross_product__section-top"
+data-section-header="1"
+aria-labelledby="checkin_date_a11y"
+role="button"
+tabindex="0"
+data-overlay-trigger-on-focus
+>
+<div
+id="ci_date"
+class=" bar b-no-tap-highlight js-searchbox__input dualcal__checkin "
+data-action="toggle"
+data-clicked-before-ready="0"
+data-cal="checkin"
+>
+<div class="searchbox_cross_product__date">
+<label class="dual_cal_label" id="checkin_date_a11y">
+Du 
+</label>
+<div id="ci_date_field">
+<span id="ci_date_text" class="m_cal_date_string js-loading-invisible" data-checkin-text>
+mar. 4 juil. 2023
+</span>
+</div>
+<svg class="bk-icon -fonticon-checkin searchbox-icon" fill="currentColor" height="24" width="24"><use xlink:href="#icon-fonticon-checkin"></use></svg>
+</div>
+<div id="searchBoxLoaderDateCheckIn" class="searchbox-before-ready-loading">
+<div class="pure-css-spinner"></div>
+</div>
+<select name="checkin_monthday"
+class="js-cal-nojs-input"
+>
+<option value="">Jour</option>
+<option value="1"
+>1</option>
+<option value="2"
+>2</option>
+<option value="3"
+>3</option>
+<option value="4"
+selected="selected"
+>4</option>
+<option value="5"
+>5</option>
+<option value="6"
+>6</option>
+<option value="7"
+>7</option>
+<option value="8"
+>8</option>
+<option value="9"
+>9</option>
+<option value="10"
+>10</option>
+<option value="11"
+>11</option>
+<option value="12"
+>12</option>
+<option value="13"
+>13</option>
+<option value="14"
+>14</option>
+<option value="15"
+>15</option>
+<option value="16"
+>16</option>
+<option value="17"
+>17</option>
+<option value="18"
+>18</option>
+<option value="19"
+>19</option>
+<option value="20"
+>20</option>
+<option value="21"
+>21</option>
+<option value="22"
+>22</option>
+<option value="23"
+>23</option>
+<option value="24"
+>24</option>
+<option value="25"
+>25</option>
+<option value="26"
+>26</option>
+<option value="27"
+>27</option>
+<option value="28"
+>28</option>
+<option value="29"
+>29</option>
+<option value="30"
+>30</option>
+<option value="31"
+>31</option>
+</select>
+<select name="checkin_year_month"
+class="js-cal-nojs-input"
+>
+<option value="">Mois</option>
+<option value="2023-7"
+selected="selected"
+>
+juillet 2023
+</option>
+<option value="2023-8"
+>
+août 2023
+</option>
+<option value="2023-9"
+>
+septembre 2023
+</option>
+<option value="2023-10"
+>
+octobre 2023
+</option>
+<option value="2023-11"
+>
+novembre 2023
+</option>
+<option value="2023-12"
+>
+décembre 2023
+</option>
+<option value="2024-1"
+>
+janvier 2024
+</option>
+<option value="2024-2"
+>
+février 2024
+</option>
+<option value="2024-3"
+>
+mars 2024
+</option>
+<option value="2024-4"
+>
+avril 2024
+</option>
+<option value="2024-5"
+>
+mai 2024
+</option>
+<option value="2024-6"
+>
+juin 2024
+</option>
+<option value="2024-7"
+>
+juillet 2024
+</option>
+<option value="2024-8"
+>
+août 2024
+</option>
+<option value="2024-9"
+>
+septembre 2024
+</option>
+<option value="2024-10"
+>
+octobre 2024
+</option>
+<option value="2024-11"
+>
+novembre 2024
+</option>
+<option value="2024-12"
+>
+décembre 2024
+</option>
+</select>
+<input type="hidden"
+disabled
+id="ci_date_input"
+name="checkin"
+value="2023-07-04" />
+</div>
+</div>
+</div>
+<div class="searchbox_cross_product__section searchbox_cross_product__section--calendar searchbox_cross_product__section--with-labels " data-has-calendar="checkout" data-calendar-section>
+<div
+class="searchbox_cross_product__section-top"
+data-section-header="1"
+aria-labelledby="checkout_date_a11y"
+role="button"
+tabindex="0"
+data-overlay-trigger-on-focus
+>
+<div
+id="co_date"
+class=" bar b-no-tap-highlight js-searchbox__input dualcal__checkout "
+data-action="toggle"
+data-clicked-before-ready="0"
+data-cal="checkout"
+>
+<div class="searchbox_cross_product__date">
+<label class="dual_cal_label" id="checkout_date_a11y">
+Au 
+</label>
+<div id="co_date_field">
+<span id="co_date_text" class="m_cal_date_string js-loading-invisible" data-checkout-text>
+mer. 5 juil. 2023
+</span>
+</div>
+<svg class="bk-icon -fonticon-checkin searchbox-icon" fill="currentColor" height="24" width="24"><use xlink:href="#icon-fonticon-checkin"></use></svg>
+<div id="searchBoxLoaderDateCheckOut" class="searchbox-before-ready-loading">
+<div class="pure-css-spinner"></div>
+</div>
+</div>
+<select name="checkout_monthday"
+class="js-cal-nojs-input"
+>
+<option value="">Jour</option>
+<option value="1"
+>1</option>
+<option value="2"
+>2</option>
+<option value="3"
+>3</option>
+<option value="4"
+>4</option>
+<option value="5"
+selected="selected"
+>5</option>
+<option value="6"
+>6</option>
+<option value="7"
+>7</option>
+<option value="8"
+>8</option>
+<option value="9"
+>9</option>
+<option value="10"
+>10</option>
+<option value="11"
+>11</option>
+<option value="12"
+>12</option>
+<option value="13"
+>13</option>
+<option value="14"
+>14</option>
+<option value="15"
+>15</option>
+<option value="16"
+>16</option>
+<option value="17"
+>17</option>
+<option value="18"
+>18</option>
+<option value="19"
+>19</option>
+<option value="20"
+>20</option>
+<option value="21"
+>21</option>
+<option value="22"
+>22</option>
+<option value="23"
+>23</option>
+<option value="24"
+>24</option>
+<option value="25"
+>25</option>
+<option value="26"
+>26</option>
+<option value="27"
+>27</option>
+<option value="28"
+>28</option>
+<option value="29"
+>29</option>
+<option value="30"
+>30</option>
+<option value="31"
+>31</option>
+</select>
+<select name="checkout_year_month"
+class="js-cal-nojs-input"
+>
+<option value="">Mois</option>
+<option value="2023-7"
+selected="selected"
+>
+juillet 2023
+</option>
+<option value="2023-8"
+>
+août 2023
+</option>
+<option value="2023-9"
+>
+septembre 2023
+</option>
+<option value="2023-10"
+>
+octobre 2023
+</option>
+<option value="2023-11"
+>
+novembre 2023
+</option>
+<option value="2023-12"
+>
+décembre 2023
+</option>
+<option value="2024-1"
+>
+janvier 2024
+</option>
+<option value="2024-2"
+>
+février 2024
+</option>
+<option value="2024-3"
+>
+mars 2024
+</option>
+<option value="2024-4"
+>
+avril 2024
+</option>
+<option value="2024-5"
+>
+mai 2024
+</option>
+<option value="2024-6"
+>
+juin 2024
+</option>
+<option value="2024-7"
+>
+juillet 2024
+</option>
+<option value="2024-8"
+>
+août 2024
+</option>
+<option value="2024-9"
+>
+septembre 2024
+</option>
+<option value="2024-10"
+>
+octobre 2024
+</option>
+<option value="2024-11"
+>
+novembre 2024
+</option>
+<option value="2024-12"
+>
+décembre 2024
+</option>
+</select>
+<input type="hidden"
+id="co_date_input"
+disabled
+name="checkout"
+value="2023-07-05" />
+</div>
+</div>
+</div>
+</div>
+<div class="searchbox_cross_product__overlay--calendar carousel-extended-dates" data-section-overlayed-calendar data-slide-up role="dialog" aria-label="Choisissez des dates">
+<div class="searchbox_cross_product__overlay-container">
+<div class="searchbox_cross_product__overlay-header">
+<span class="searchbox_cross_product__overlay-close" data-section-overlay-close tabindex="0" role="button" aria-label="Fermer"><svg aria-hidden="true" class="bk-icon -iconset-close" fill="#BDBDBD" focusable="false" height="24" width="24"><use xlink:href="#icon-iconset-close"></use></svg></span>
+</div>
+<div class="searchbox_cross_product__overlay-footer">
+<div role="region" class="bui-carousel bui-carousel--small carousel-extended-dates" data-bui-component="Carousel" data-component="searchbox/calendar-extended-dates" data-short-term-flex-dates>
+<ul class="bui-carousel__inner carousel-extended-dates__inner" data-bui-ref="carousel-container">
+<li class="bui-carousel__item" data-bui-ref="carousel-item">
+<label class="bui-input-checkbutton">
+<input type="checkbox" class="bui-input-checkbutton__input" name="flex_window" data-flex-dates-default value="0" />
+<span class="bui-input-checkbutton__item">
+<div class="bui-text bui-text--variant-emphasized_2">Dates exactes</div>
+</span>
+</label>
+</li>
+<li class="bui-carousel__item" data-bui-ref="carousel-item">
+<label class="bui-input-checkbutton">
+<input type="checkbox" class="bui-input-checkbutton__input" name="flex_window" value="1" />
+<span class="bui-input-checkbutton__item">
+<svg class="bk-icon -streamline-plus_minus bui-input-checkbutton__check" height="14" width="14"><use xlink:href="#icon-streamline-plus_minus"></use></svg>
+<div class="bui-text bui-text--variant-emphasized_2">1 jours</div>
+</span>
+</label>
+</li>
+<li class="bui-carousel__item" data-bui-ref="carousel-item">
+<label class="bui-input-checkbutton">
+<input type="checkbox" class="bui-input-checkbutton__input" name="flex_window" value="2" />
+<span class="bui-input-checkbutton__item">
+<svg class="bk-icon -streamline-plus_minus bui-input-checkbutton__check" height="14" width="14"><use xlink:href="#icon-streamline-plus_minus"></use></svg>
+<div class="bui-text bui-text--variant-emphasized_2">2 jours</div>
+</span>
+</label>
+</li>
+<li class="bui-carousel__item" data-bui-ref="carousel-item">
+<label class="bui-input-checkbutton">
+<input type="checkbox" class="bui-input-checkbutton__input" name="flex_window" value="3" />
+<span class="bui-input-checkbutton__item">
+<svg class="bk-icon -streamline-plus_minus bui-input-checkbutton__check" height="14" width="14"><use xlink:href="#icon-streamline-plus_minus"></use></svg>
+<div class="bui-text bui-text--variant-emphasized_2">3 jours</div>
+</span>
+</label>
+</li>
+<li class="bui-carousel__item" data-bui-ref="carousel-item">
+<label class="bui-input-checkbutton">
+<input type="checkbox" class="bui-input-checkbutton__input" name="flex_window" value="7" />
+<span class="bui-input-checkbutton__item">
+<svg class="bk-icon -streamline-plus_minus bui-input-checkbutton__check" height="14" width="14"><use xlink:href="#icon-streamline-plus_minus"></use></svg>
+<div class="bui-text bui-text--variant-emphasized_2">7 jours</div>
+</span>
+</label>
+</li>
+</ul>
+</div>
+<p data-calendar-dates-render-selected></p>
+<button class="bui-button bui-button--primary" type="button" data-section-overlay-apply>
+<span class="bui-button__text">
+Fermer
+</span>
+</button>
+</div>
+</div>
+<div class="bui-calendar searchbox_cross_product__overlay-content" data-calendar-container>
+<div class="bui-calendar__main">
+<div class="bui-calendar__control bui-calendar__control--prev" data-bui-ref="calendar-prev" style="display: none;">
+</div>
+<div class="bui-calendar__control bui-calendar__control--next" data-bui-ref="calendar-next" style="display: none;">
+</div>
+<div class="bui-calendar__content" data-bui-ref="calendar-content"></div>
+</div>
+</div>
+<span class="hidden" data-bui-ref="calendar-selected-display"></span>
+</div>
+</div>
+<div class="searchbox_cross_product__section-container">
+<div
+class="searchbox_cross_product__section searchbox_cross_product__section--groups searchbox_cross_product__section--with-labels"
+data-component="searchbox/groups/config"
+data-mandatory-ages="1"
+>
+<div class="searchbox_cross_product__section-top searchbox_cross_product__section-top--flex" data-section-header="1"
+data-section-overlayed data-section-overlayed-groups-trigger
+>
+<label class="searchbox_cross_product__groups-label searchbox_cross_product__groups-label--adults"><div class="searchbox_cross_product__groups-label-text searchbox_cross_product__groups-label-text--adults">Adultes</div><select class="bui-form__control searchbox_cross_product__groups-select" name="group_adults" data-role="guests"><option  value="1">1</option><option  selected="selected"  value="2">2</option><option  value="3">3</option><option  value="4">4</option><option  value="5">5</option><option  value="6">6</option><option  value="7">7</option><option  value="8">8</option><option  value="9">9</option><option  value="10">10</option><option  value="11">11</option><option  value="12">12</option><option  value="13">13</option><option  value="14">14</option><option  value="15">15</option><option  value="16">16</option><option  value="17">17</option><option  value="18">18</option><option  value="19">19</option><option  value="20">20</option><option  value="21">21</option><option  value="22">22</option><option  value="23">23</option><option  value="24">24</option><option  value="25">25</option><option  value="26">26</option><option  value="27">27</option><option  value="28">28</option><option  value="29">29</option><option  value="30">30</option></select></label><label class="searchbox_cross_product__groups-label searchbox_cross_product__groups-label--children"><div class="searchbox_cross_product__groups-label-text">Enfants</div><select name="group_children" class="bui-form__control searchbox_cross_product__groups-select" data-role="children"><option  selected="selected"  value="0">0</option><option  value="1">1</option><option  value="2">2</option><option  value="3">3</option><option  value="4">4</option><option  value="5">5</option><option  value="6">6</option><option  value="7">7</option><option  value="8">8</option><option  value="9">9</option><option  value="10">10</option></select></label><label class="searchbox_cross_product__groups-label"><div class="searchbox_cross_product__groups-label-text">Chambres</div><select class="bui-form__control searchbox_cross_product__groups-select" name="no_rooms" data-role="rooms"><option  selected="selected"  value="1">1</option><option  value="2">2</option><option  value="3">3</option><option  value="4">4</option><option  value="5">5</option><option  value="6">6</option><option  value="7">7</option><option  value="8">8</option><option  value="9">9</option><option  value="10">10</option><option  value="11">11</option><option  value="12">12</option><option  value="13">13</option><option  value="14">14</option><option  value="15">15</option><option  value="16">16</option><option  value="17">17</option><option  value="18">18</option><option  value="19">19</option><option  value="20">20</option><option  value="21">21</option><option  value="22">22</option><option  value="23">23</option><option  value="24">24</option><option  value="25">25</option><option  value="26">26</option><option  value="27">27</option><option  value="28">28</option><option  value="29">29</option><option  value="30">30</option></select></label>
+</div>
+<div class="searchbox_cross_product__overlay--groups" data-section-overlayed-groups data-slide-up role="dialog" aria-label="Sélectionnez les personnes/hébergements">
+<div class="searchbox_cross_product__overlay-container">
+<div class="searchbox_cross_product__overlay-header">
+<span class="searchbox_cross_product__overlay-close" data-section-overlay-apply tabindex="0" role="button" aria-label="Fermer" data-et-click="customGoal:INFdCDVZMYCAZbGcINNDaeKe:4"><svg aria-hidden="true" class="bk-icon -iconset-close" fill="#BDBDBD" height="24" width="24"><use xlink:href="#icon-iconset-close"></use></svg></span>
+</div>
+<div class="searchbox_cross_product__overlay-footer">
+<button class="bui-button bui-button--primary"
+type="button"
+data-section-overlay-apply
+data-et-click="customGoal:INFdCDVZMYCAZbGcINNDaeKe:3"
+>
+<span class="bui-button__text">
+Fermer
+</span>
+</button>
+</div>
+</div>
+<div class="searchbox_cross_product__overlay-content">
+<div class="searchbox_cross_product__overlay-content-inner">
+<div class="searchbox_cross_product__section-group">
+<div class="bui-stepper" data-bui-component="InputStepper">
+<div class="bui-stepper__title-wrapper">
+<label class="bui-stepper__title" for="group_adults_overlay">Adultes</label>
+</div>
+<div class="bui-stepper__wrapper">
+<input type="range" class="bui-stepper__input" data-bui-ref="input-stepper-field" id="group_adults_overlay" name="group_adults_overlay" min="1" max="30" value="2"  data-role="guests" />
+<button class="bui-button bui-button--secondary bui-stepper__subtract-button" data-bui-ref="input-stepper-subtract-button" type="button" aria-hidden="true" >
+<span class="bui-button__text">-</span>
+</button>
+<span class="bui-stepper__display" aria-hidden="true" data-bui-ref="input-stepper-value">2</span>
+<button class="bui-button bui-button--secondary bui-stepper__add-button" data-bui-ref="input-stepper-add-button" type="button" aria-hidden="true" >
+<span class="bui-button__text">+</span>
+</button>
+</div>
+</div>
+</div>
+<div class="searchbox_cross_product__section-group">
+<div class="bui-stepper" data-bui-component="InputStepper">
+<div class="bui-stepper__title-wrapper">
+<label class="bui-stepper__title" for="group_children_overlay">Enfants</label>
+</div>
+<div class="bui-stepper__wrapper">
+<input type="range" class="bui-stepper__input" data-bui-ref="input-stepper-field" id="group_children_overlay" name="group_children_overlay" min="0" max="10" value="0"  data-role="children" />
+<button class="bui-button bui-button--secondary bui-stepper__subtract-button" data-bui-ref="input-stepper-subtract-button" type="button" aria-hidden="true" disabled>
+<span class="bui-button__text">-</span>
+</button>
+<span class="bui-stepper__display" aria-hidden="true" data-bui-ref="input-stepper-value">0</span>
+<button class="bui-button bui-button--secondary bui-stepper__add-button" data-bui-ref="input-stepper-add-button" type="button" aria-hidden="true" >
+<span class="bui-button__text">+</span>
+</button>
+</div>
+</div>
+</div>
+<div class="searchbox_cross_product__section-group-children">
+<label class=" js-child-ages-label" data-children-ages-label style="display: none;">
+Âge de l'enfant à la fin du séjour
+</label>
+<p>Ajoutez l'âge de chaque enfant pour voir les résultats les plus appropriés en termes de lits, taille de chambre et tarifs spéciaux.</p>
+<div class="searchbox_cross_product__section-children-ages  js-child-ages" data-section-children="1">
+</div>
+</div>
+<div class="searchbox_cross_product__section-group">
+<div class="bui-stepper" data-bui-component="InputStepper">
+<div class="bui-stepper__title-wrapper">
+<label class="bui-stepper__title" for="no_rooms_overlay">Chambres</label>
+</div>
+<div class="bui-stepper__wrapper">
+<input type="range" class="bui-stepper__input" data-bui-ref="input-stepper-field" id="no_rooms_overlay" name="no_rooms_overlay" min="1" max="30" value="1"  data-role="rooms" />
+<button class="bui-button bui-button--secondary bui-stepper__subtract-button" data-bui-ref="input-stepper-subtract-button" type="button" aria-hidden="true" disabled>
+<span class="bui-button__text">-</span>
+</button>
+<span class="bui-stepper__display" aria-hidden="true" data-bui-ref="input-stepper-value">1</span>
+<button class="bui-button bui-button--secondary bui-stepper__add-button" data-bui-ref="input-stepper-add-button" type="button" aria-hidden="true" >
+<span class="bui-button__text">+</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<template id="sb-age-option-container">
+<div class="age_option-container  js-age-option-container">
+<select name="age" class="age">
+<option value selected>
+Âge requis
+</option>
+<option value="0"
+>
+0 ans
+</option>
+<option value="1"
+>
+1 an
+</option>
+<option value="2"
+>
+2 ans
+</option>
+<option value="3"
+>
+3 ans
+</option>
+<option value="4"
+>
+4 ans
+</option>
+<option value="5"
+>
+5 ans
+</option>
+<option value="6"
+>
+6 ans
+</option>
+<option value="7"
+>
+7 ans
+</option>
+<option value="8"
+>
+8 ans
+</option>
+<option value="9"
+>
+9 ans
+</option>
+<option value="10"
+>
+10 ans
+</option>
+<option value="11"
+>
+11 ans
+</option>
+<option value="12"
+>
+12 ans
+</option>
+<option value="13"
+>
+13 ans
+</option>
+<option value="14"
+>
+14 ans
+</option>
+<option value="15"
+>
+15 ans
+</option>
+<option value="16"
+>
+16 ans
+</option>
+<option value="17"
+>
+17 ans
+</option>
+</select>
+<svg class="bk-icon -iconset-dropdown" fill="#0071C2" height="16" width="16"><use xlink:href="#icon-iconset-dropdown"></use></svg>
+</div>
+</template>
+<div class="searchbox_cross_product__section-container">
+<div class="searchbox_cross_product__section searchbox_cross_product__section--travel-purpose ">
+<div class="bui-form__group searchbox_cross_product__section-top">
+<label
+class="bui-checkbox searchbox_cross_product__travel-purpose-text"
+for="sb_travel_purpose_checkbox"
+data-et-click="
+customGoal:cCHObTRVDEZRdPQBcGCfTKYCccaT:2
+customGoal:cCHObAURAfVaeYPZZZECVVDJdDBKWPHDDWe:3
+goal:mdot_index_travel_for_work_checkbox_click
+"
+>
+<input class="bui-checkbox__input" type="checkbox" form="form_search_location" value="business" id="sb_travel_purpose_checkbox" name="sb_travel_purpose"  />
+<span class="bui-checkbox__label">Je voyage pour le travail</span>
+</label>
+</div>
+</div>
+</div>
+<button
+id="submit_search"
+class="primary_cta js_submit_search js-searchbox__input b-no-tap-highlight m_bigger_search_button"
+type="submit"
+title="Recherchez un hôtel"
+data-et-click="  customGoal:cCHObAURAfVaeYPZZZECVVDJdDBKWPHDDWe:2   customGoal:cCHObTRVDEZRdPQBcGCfTKYCccaT:1 goal:mdot_index_search_button_click  "
+>
+Rechercher
+</button>
+</div>
+</form>
+</div>
+<div data-capla-component="b-index-lp-web-mfe/GlobalAlerts" data-capla-namespace="b-index-lp-web-mfeNTWYGbBI"></div>
+</div>
+<div data-capla-component="b-index-lp-web-mfe/HeroBannerMobile" data-capla-namespace="b-index-lp-web-mfeNTWYGbBI"><div></div></div>
+<div data-et-view=" customGoal:cCHObXKeNJAbINFPIWBcOOIBBO:1 cCHObXKeNJAbINFPIWBcOOIBBO:1  cCHObXKeNJAbINFPIWBcOOIBBO:2  "></div>
+<div data-capla-component="b-index-lp-web-mfe/RecentSearchesCarousel" data-capla-namespace="b-index-lp-web-mfeNTWYGbBI"><div role="none"></div></div>
+<div data-et-view=" BHDTJdReLBBVYUfFdHMaMEAfXafJCfSLT:2  "></div>
+<div data-capla-component="b-index-lp-web-mfe/SecondaryBannerMobile" data-capla-namespace="b-index-lp-web-mfeNTWYGbBI"><div><div class="f4b5ebc620" data-testid="secondary-banner-mobile--legacy"><div><div data-testid="secondary-banner-mobile-container" class="a826ba81c4 fd3e860f04 afd256fc79 d08f526e0d ed11e24d01 ef9845d4b3 a30d591987 acf57d148f b5ea068b7c" style="--bui_box_padding--s:4"><div class="bbf48111fb"><div class="a002a1b740" data-testid="secondary-banner-mobile-default-image"><img src="https://q-xx.bstatic.com/xdata/images/xphoto/300x300/220312579.jpeg?k=ec1bfe6f32ced351093c908e4cf74361acd9b577e01f4be6cb69b652d004a538&amp;o=" alt="Prenez les plus longues vacances de votre vie"/></div><div class="b5835007b6"><div data-testid="secondary-banner-mobile-content-area-title" class="ac78a73c96 a7415db20f">Prenez les plus longues vacances de votre vie</div><div data-testid="secondary-banner-mobile-content-area-subtitile" class="db29ecfbe2 c9d5664bef">Réservez un long séjour et profitez de nombreux tarifs réduits au mois.</div><div class="bd1cedaba0"><a data-testid="secondary-banner-mobile-call-to-action" href="https://www.booking.com/extended-stays/index.fr.html?aid=304142&amp;label=gen173nr-1FCAEoggI46AdIDVgEaJEBiAECmAENuAEJ0gEHd2Vidmlld9gBAegBAfgBAogCAagCA7gC4_-OpQbAAgHSAiQ2NDVhYjI2Zi1mMDNlLTQ4ZTEtOWVmMC0wMTc5OGYwNWQyMWXYAgXgAgE" class="fc63351294 a822bdf511 e2b4ffd73d f7db01295e c334e6f658 a9a04704ee b46e54b312"><span class="e57ffa4eb5">Trouver un séjour</span></a></div></div></div></div></div><div><div data-testid="secondary-banner-mobile-container" class="a826ba81c4 fd3e860f04 afd256fc79 d08f526e0d ed11e24d01 ef9845d4b3 a30d591987 acf57d148f b5ea068b7c" style="--bui_box_padding--s:4"><div class="bbf48111fb"><div class="a002a1b740" data-testid="secondary-banner-mobile-default-image"><img src="https://r-xx.bstatic.com/xdata/images/xphoto/300x300/206447135.jpeg?k=90c35fc572269234225182eeabb4323f8000c195ee6cc77f3526176dd772671a&amp;o=" alt="Deux voyageurs au sommet d&#x27;une colline qui regardent la baie en contrebas"/></div><div class="b5835007b6"><div data-testid="secondary-banner-mobile-content-area-title" class="ac78a73c96 a7415db20f">Une escapade qui vous ressemble</div><div data-testid="secondary-banner-mobile-content-area-subtitile" class="db29ecfbe2 c9d5664bef">Économisez au moins 15 % sur des séjours dans le monde entier</div><div class="bd1cedaba0"><a data-testid="secondary-banner-mobile-call-to-action" href="https://www.booking.com/dealspage.fr.html?aid=304142&amp;label=gen173nr-1FCAEoggI46AdIDVgEaJEBiAECmAENuAEJ0gEHd2Vidmlld9gBAegBAfgBAogCAagCA7gC4_-OpQbAAgHSAiQ2NDVhYjI2Zi1mMDNlLTQ4ZTEtOWVmMC0wMTc5OGYwNWQyMWXYAgXgAgE&amp;campaign_id=getaway" class="fc63351294 a822bdf511 e2b4ffd73d f7db01295e c334e6f658 a9a04704ee b46e54b312"><span class="e57ffa4eb5">Trouver une Offre Saisonnière</span></a></div></div></div></div></div></div></div></div>
+<div data-component="genius-vip/tracking"
+data-capla-project-name="index-lp"
+data-service-name="web-mfe"
+data-tracking-enabled="1">
+<div data-capla-component="b-index-lp-web-mfe/GeniusVipCampaignsIndexBanner" data-capla-namespace="b-index-lp-web-mfeNTWYGbBI"></div>
+</div>
+<script nonce="le6bD1nif153eMk"> if( window.performance && performance.measure && 'b-fold') { performance.measure('b-fold'); } </script> 
+<script nonce="le6bD1nif153eMk">
+(function () {
+if (typeof EventTarget !== 'undefined') {
+if (typeof EventTarget.prototype.dispatchEvent === 'undefined' && typeof EventTarget.prototype.fireEvent === 'function') {
+EventTarget.prototype.dispatchEvent = EventTarget.prototype.fireEvent;
+}
+}
+if (typeof window.CustomEvent !== 'function') {
+// Mobile IE has CustomEvent implemented as Object, this fixes it.
+var CustomEvent = function(event, params) {
+var evt;
+params = params || {bubbles: false, cancelable: false, detail: undefined};
+try {
+evt = document.createEvent('CustomEvent');
+evt.initCustomEvent(event, params.bubbles, params.cancelable, params.detail);
+} catch (error) {
+// fallback for browsers that don't support createEvent('CustomEvent')
+evt = document.createEvent("Event");
+for (var param in params) {
+evt[param] = params[param];
+}
+evt.initEvent(event, params.bubbles, params.cancelable);
+}
+return evt;
+};
+CustomEvent.prototype = window.Event.prototype;
+window.CustomEvent = CustomEvent;
+}
+if (!Element.prototype.matches) {
+Element.prototype.matches =
+Element.prototype.matchesSelector ||
+Element.prototype.msMatchesSelector ||
+Element.prototype.oMatchesSelector ||
+Element.prototype.webkitMatchesSelector;
+}
+if (!Element.prototype.closest) {
+Element.prototype.closest = function(s) {
+var el = this;
+if (!document.documentElement.contains(el)) return null;
+do {
+if (el.matches(s)) return el;
+el = el.parentElement || el.parentNode;
+} while (el !== null && el.nodeType === 1);
+return null;
+};
+}
+}());
+(function(){
+var searchboxEl = document.querySelector('.js-searchbox_redesign');
+if (!searchboxEl) return;
+var groupChildren = searchboxEl.querySelector('[name=group_children]');
+var childAgesEl = searchboxEl.querySelector('.js-child-ages');
+var childAgesLabelEl = searchboxEl.querySelector('.js-child-ages-label');
+var ageOptionHTML;
+var childrenNo;
+function showChildrenAges() {
+childAgesEl.style.display = 'block';
+childAgesLabelEl.style.display = 'block';
+}
+function hideChildrenAges() {
+childAgesEl.style.display = 'none';
+childAgesLabelEl.style.display = 'none';
+}
+function onGroupChildenChange(e) {
+var newValue = parseInt(e.target.value);
+if (newValue > childrenNo) {
+for (var i = newValue; i > childrenNo; i--) {
+childAgesEl.insertAdjacentHTML('beforeend', ageOptionHTML);
+}
+} else {
+var els = childAgesEl.querySelectorAll('.js-age-option-container');
+for (var i = els.length - 1; i >= 0; i--) {
+if (i >= newValue) {
+var el = els[i];
+if (el.parentNode !== null) {
+el.parentNode.removeChild(el);
+}
+}
+}
+}
+if (newValue == 0 && childrenNo > 0) {
+hideChildrenAges();
+}
+if (newValue > 0 && childrenNo == 0) {
+showChildrenAges();
+}
+childrenNo = newValue;
+}
+if (groupChildren) {
+groupChildren.disabled = false;
+childrenNo = parseInt(groupChildren.value);
+if (childrenNo > 0) {
+showChildrenAges();
+}
+ageOptionHTML = document.querySelector('#sb-age-option-container').innerHTML;
+groupChildren.addEventListener('change', onGroupChildenChange);
+document.addEventListener('cp:sb-group-children-ready', function() {
+groupChildren.removeEventListener('change', onGroupChildenChange);
+});
+}
+}());
+</script>
+<div class="css-loading-hidden m_lp_below_fold_container">
+<div data-capla-component="b-index-lp-web-mfe/empty" data-capla-namespace="b-index-lp-web-mfeNTWYGbBI"></div>
+<div data-et-view=" cCGaYSdMbYSfcdReLbFZVGAZaYYfPHe:1  cCGaYSdMbYSfcdReLbFZVGAZaYYfPHe:3    cCGaYSdMbYSfcdReLbFZVGAZaYYfPHe:6   "></div>
+<div data-et-view=" cCHObEfEITNPfbeQMIaWYUQJFFQcOOIBBO:3 cCHObONdPbIZFbYSfDcfFdHMbNXGDJEBBVYYT:1 cCHObIULDcFUHZESEETWBZEWaSdCDWOOC:2  cCHObBYQfBNSWTDIPPQFFcSaXYRGMOOIBBO:2   cCHObIULDcFUHZESEETWBZEWaSdCDWOOC:3   cCHObIULDcFUHZESEETWBZEWaSdCDWOOC:6     aXbSbcfFdHMTcZJFOHHAAHdZGaHYYfPHe:1       OOIBTVXOBSLDEZREeQSAETWRGaCTPVZNMPHVC:1   OOIBTVXOBSLDEZREeQSAETWRGaCTPVZNMPHVC:4    "></div>
+<div data-et-view=" cCGaYSddOEGcHNAdUDUCRPQFAeJQWPHDDWe:1     cCGaYSddOEGcHNAdUDUCRPQFAeJQWPHDDWe:6   "></div>
+<div data-et-view="cCHObIPPQFFTaNFbNXGDJEBBVYYT:2"></div>
+<div data-et-view=" cCHObTULHfAFFQZcVIZdRJOOIBBO:3 ">
+</div>
+<div data-capla-component="b-index-lp-web-mfe/DestinationPostcardsMobile" data-capla-namespace="b-index-lp-web-mfeNTWYGbBI"><div><div data-qmab-component-id="1004"><div class="ecfbee5b7a"><div><div class="f05428a2f1"><div class="a1b3f50dcd be36d14cea b2fe1a41c3 e187349485 d19ba76520"><div class="b1e6dd8416 aacd9d0b0a"><div class="b3d1cacd40 ee654102b7"><div data-testid="webcore-carousel-heading" class="fcab3ed991 f0d4d6a2f5 fda3b74d0d">Plus de destinations</div></div></div></div></div><div data-testid="webcore-carousel" role="region" class="d4f3be4ddb cbe6ba4fde a201aee5ff"><ul class="fff8c74b55 cb9e386163" id=":R2:" tabindex="0" aria-atomic="false"><li class="d5fc932504 ebb6d69bfc"><a target="" data-testid="web-core-stacked-card" href="https://www.booking.com/searchresults.fr.html?aid=304142&amp;label=gen173nr-1FCAEoggI46AdIDVgEaJEBiAECmAENuAEJ0gEHd2Vidmlld9gBAegBAfgBAogCAagCA7gC4_-OpQbAAgHSAiQ2NDVhYjI2Zi1mMDNlLTQ4ZTEtOWVmMC0wMTc5OGYwNWQyMWXYAgXgAgE&amp;dest_id=-207091&amp;dest_type=city&amp;group_adults=2&amp;req_adults=2&amp;no_rooms=1&amp;group_children=0&amp;req_children=0" class="fc63351294 b878730b30"><div class="a1b3f50dcd da949bc143 f7c6687c3d"><div data-testid="webcore-carousel-image" style="--bui_aspect_ratio_padding-top--s:100%" class="d57f52f47d"><div class="da627785d6"><div class="bcc2c1529b"><picture class="e4e8d3238b bc5368ea83"><img class="c3194e6c89 e5eb7fb6cb" src="https://cf.bstatic.com/xdata/images/city/600x600/775969.jpg?k=08be734006ef6e46bb265a3990670ec58f822ebe25e648ecf279d3c60c634806&amp;o=" role="presentation" loading="lazy"/></picture></div></div></div><div class="b3d1cacd40 ff12947055"><div data-testid="webcore-carousel-title" class="ac78a73c96 f0d4d6a2f5 fda3b74d0d">Antananarivo</div><div data-testid="webcore-carousel-sub-title" class="db29ecfbe2 c90c0a70d3 a34d1a4138">154 établissements</div></div></div></a></li><li class="d5fc932504 ebb6d69bfc"><a target="" data-testid="web-core-stacked-card" href="https://www.booking.com/searchresults.fr.html?aid=304142&amp;label=gen173nr-1FCAEoggI46AdIDVgEaJEBiAECmAENuAEJ0gEHd2Vidmlld9gBAegBAfgBAogCAagCA7gC4_-OpQbAAgHSAiQ2NDVhYjI2Zi1mMDNlLTQ4ZTEtOWVmMC0wMTc5OGYwNWQyMWXYAgXgAgE&amp;dest_id=-782831&amp;dest_type=city&amp;group_adults=2&amp;req_adults=2&amp;no_rooms=1&amp;group_children=0&amp;req_children=0" class="fc63351294 b878730b30"><div class="a1b3f50dcd da949bc143 f7c6687c3d"><div data-testid="webcore-carousel-image" style="--bui_aspect_ratio_padding-top--s:100%" class="d57f52f47d"><div class="da627785d6"><div class="bcc2c1529b"><picture class="e4e8d3238b bc5368ea83"><img class="c3194e6c89 e5eb7fb6cb" src="https://cf.bstatic.com/xdata/images/city/600x600/619932.jpg?k=81c20cf1191a1d05472b45413bed3cee67dc92b8c1387c60a960beb5629f109d&amp;o=" role="presentation" loading="lazy"/></picture></div></div></div><div class="b3d1cacd40 ff12947055"><div data-testid="webcore-carousel-title" class="ac78a73c96 f0d4d6a2f5 fda3b74d0d">Dubaï</div><div data-testid="webcore-carousel-sub-title" class="db29ecfbe2 c90c0a70d3 a34d1a4138">4 285 établissements</div></div></div></a></li><li class="d5fc932504 ebb6d69bfc"><a target="" data-testid="web-core-stacked-card" href="https://www.booking.com/searchresults.fr.html?aid=304142&amp;label=gen173nr-1FCAEoggI46AdIDVgEaJEBiAECmAENuAEJ0gEHd2Vidmlld9gBAegBAfgBAogCAagCA7gC4_-OpQbAAgHSAiQ2NDVhYjI2Zi1mMDNlLTQ4ZTEtOWVmMC0wMTc5OGYwNWQyMWXYAgXgAgE&amp;dest_id=-219652&amp;dest_type=city&amp;group_adults=2&amp;req_adults=2&amp;no_rooms=1&amp;group_children=0&amp;req_children=0" class="fc63351294 b878730b30"><div class="a1b3f50dcd da949bc143 f7c6687c3d"><div data-testid="webcore-carousel-image" style="--bui_aspect_ratio_padding-top--s:100%" class="d57f52f47d"><div class="da627785d6"><div class="bcc2c1529b"><picture class="e4e8d3238b bc5368ea83"><img class="c3194e6c89 e5eb7fb6cb" src="https://cf.bstatic.com/xdata/images/city/600x600/726260.jpg?k=39eeab36f16d4531672373c77dd5d0a50791c458170d165c018a82cf57baa7fb&amp;o=" role="presentation" loading="lazy"/></picture></div></div></div><div class="b3d1cacd40 ff12947055"><div data-testid="webcore-carousel-title" class="ac78a73c96 f0d4d6a2f5 fda3b74d0d">Morondava</div><div data-testid="webcore-carousel-sub-title" class="db29ecfbe2 c90c0a70d3 a34d1a4138">10 établissements</div></div></div></a></li><li class="d5fc932504 ebb6d69bfc"><a target="" data-testid="web-core-stacked-card" href="https://www.booking.com/searchresults.fr.html?aid=304142&amp;label=gen173nr-1FCAEoggI46AdIDVgEaJEBiAECmAENuAEJ0gEHd2Vidmlld9gBAegBAfgBAogCAagCA7gC4_-OpQbAAgHSAiQ2NDVhYjI2Zi1mMDNlLTQ4ZTEtOWVmMC0wMTc5OGYwNWQyMWXYAgXgAgE&amp;dest_id=-2258072&amp;dest_type=city&amp;group_adults=2&amp;req_adults=2&amp;no_rooms=1&amp;group_children=0&amp;req_children=0" class="fc63351294 b878730b30"><div class="a1b3f50dcd da949bc143 f7c6687c3d"><div data-testid="webcore-carousel-image" style="--bui_aspect_ratio_padding-top--s:100%" class="d57f52f47d"><div class="da627785d6"><div class="bcc2c1529b"><picture class="e4e8d3238b bc5368ea83"><img class="c3194e6c89 e5eb7fb6cb" src="https://cf.bstatic.com/xdata/images/city/600x600/685406.jpg?k=fb02ffb273110d269bc5603a6c662f36fc5ec76b877f68d5de90c0ffbdd3f475&amp;o=" role="presentation" loading="lazy"/></picture></div></div></div><div class="b3d1cacd40 ff12947055"><div data-testid="webcore-carousel-title" class="ac78a73c96 f0d4d6a2f5 fda3b74d0d">Nairobi</div><div data-testid="webcore-carousel-sub-title" class="db29ecfbe2 c90c0a70d3 a34d1a4138">2 040 établissements</div></div></div></a></li><li class="d5fc932504 ebb6d69bfc"><a target="" data-testid="web-core-stacked-card" href="https://www.booking.com/searchresults.fr.html?aid=304142&amp;label=gen173nr-1FCAEoggI46AdIDVgEaJEBiAECmAENuAEJ0gEHd2Vidmlld9gBAegBAfgBAogCAagCA7gC4_-OpQbAAgHSAiQ2NDVhYjI2Zi1mMDNlLTQ4ZTEtOWVmMC0wMTc5OGYwNWQyMWXYAgXgAgE&amp;dest_id=-1456928&amp;dest_type=city&amp;group_adults=2&amp;req_adults=2&amp;no_rooms=1&amp;group_children=0&amp;req_children=0" class="fc63351294 b878730b30"><div class="a1b3f50dcd da949bc143 f7c6687c3d"><div data-testid="webcore-carousel-image" style="--bui_aspect_ratio_padding-top--s:100%" class="d57f52f47d"><div class="da627785d6"><div class="bcc2c1529b"><picture class="e4e8d3238b bc5368ea83"><img class="c3194e6c89 e5eb7fb6cb" src="https://cf.bstatic.com/xdata/images/city/600x600/613088.jpg?k=a370ac3fb385fb211b35a79a42b0e968ddb458be37108af476c558bf4cedc1f3&amp;o=" role="presentation" loading="lazy"/></picture></div></div></div><div class="b3d1cacd40 ff12947055"><div data-testid="webcore-carousel-title" class="ac78a73c96 f0d4d6a2f5 fda3b74d0d">Paris</div><div data-testid="webcore-carousel-sub-title" class="db29ecfbe2 c90c0a70d3 a34d1a4138">7 556 établissements</div></div></div></a></li><li class="d5fc932504 ebb6d69bfc"><a target="" data-testid="web-core-stacked-card" href="https://www.booking.com/searchresults.fr.html?aid=304142&amp;label=gen173nr-1FCAEoggI46AdIDVgEaJEBiAECmAENuAEJ0gEHd2Vidmlld9gBAegBAfgBAogCAagCA7gC4_-OpQbAAgHSAiQ2NDVhYjI2Zi1mMDNlLTQ4ZTEtOWVmMC0wMTc5OGYwNWQyMWXYAgXgAgE&amp;dest_id=-214173&amp;dest_type=city&amp;group_adults=2&amp;req_adults=2&amp;no_rooms=1&amp;group_children=0&amp;req_children=0" class="fc63351294 b878730b30"><div class="a1b3f50dcd da949bc143 f7c6687c3d"><div data-testid="webcore-carousel-image" style="--bui_aspect_ratio_padding-top--s:100%" class="d57f52f47d"><div class="da627785d6"><div class="bcc2c1529b"><picture class="e4e8d3238b bc5368ea83"><img class="c3194e6c89 e5eb7fb6cb" src="https://cf.bstatic.com/xdata/images/city/600x600/814356.jpg?k=4064f9de7c62d2ad9c9775c7af5a5dc5919600e598fa411eb4b70bd17ca83fa3&amp;o=" role="presentation" loading="lazy"/></picture></div></div></div><div class="b3d1cacd40 ff12947055"><div data-testid="webcore-carousel-title" class="ac78a73c96 f0d4d6a2f5 fda3b74d0d">Ivato</div><div data-testid="webcore-carousel-sub-title" class="db29ecfbe2 c90c0a70d3 a34d1a4138">21 établissements</div></div></div></a></li><li class="d5fc932504 ebb6d69bfc"><a target="" data-testid="web-core-stacked-card" href="https://www.booking.com/searchresults.fr.html?aid=304142&amp;label=gen173nr-1FCAEoggI46AdIDVgEaJEBiAECmAENuAEJ0gEHd2Vidmlld9gBAegBAfgBAogCAagCA7gC4_-OpQbAAgHSAiQ2NDVhYjI2Zi1mMDNlLTQ4ZTEtOWVmMC0wMTc5OGYwNWQyMWXYAgXgAgE&amp;dest_id=-208865&amp;dest_type=city&amp;group_adults=2&amp;req_adults=2&amp;no_rooms=1&amp;group_children=0&amp;req_children=0" class="fc63351294 b878730b30"><div class="a1b3f50dcd da949bc143 f7c6687c3d"><div data-testid="webcore-carousel-image" style="--bui_aspect_ratio_padding-top--s:100%" class="d57f52f47d"><div class="da627785d6"><div class="bcc2c1529b"><picture class="e4e8d3238b bc5368ea83"><img class="c3194e6c89 e5eb7fb6cb" src="https://cf.bstatic.com/xdata/images/city/600x600/964314.jpg?k=38c977baa9fcad2b21015516e9247fb064c6090d862d76f32d84edb3be9e774a&amp;o=" role="presentation" loading="lazy"/></picture></div></div></div><div class="b3d1cacd40 ff12947055"><div data-testid="webcore-carousel-title" class="ac78a73c96 f0d4d6a2f5 fda3b74d0d">Antsirabe</div><div data-testid="webcore-carousel-sub-title" class="db29ecfbe2 c90c0a70d3 a34d1a4138">14 établissements</div></div></div></a></li><li class="d5fc932504 ebb6d69bfc"><a target="" data-testid="web-core-stacked-card" href="https://www.booking.com/searchresults.fr.html?aid=304142&amp;label=gen173nr-1FCAEoggI46AdIDVgEaJEBiAECmAENuAEJ0gEHd2Vidmlld9gBAegBAfgBAogCAagCA7gC4_-OpQbAAgHSAiQ2NDVhYjI2Zi1mMDNlLTQ4ZTEtOWVmMC0wMTc5OGYwNWQyMWXYAgXgAgE&amp;dest_id=-219944&amp;dest_type=city&amp;group_adults=2&amp;req_adults=2&amp;no_rooms=1&amp;group_children=0&amp;req_children=0" class="fc63351294 b878730b30"><div class="a1b3f50dcd da949bc143 f7c6687c3d"><div data-testid="webcore-carousel-image" style="--bui_aspect_ratio_padding-top--s:100%" class="d57f52f47d"><div class="da627785d6"><div class="bcc2c1529b"><picture class="e4e8d3238b bc5368ea83"><img class="c3194e6c89 e5eb7fb6cb" src="https://cf.bstatic.com/xdata/images/city/600x600/731128.jpg?k=e894f6c540f2488c3a1a29a02ca8922d11bb1bbf0e92a
+d2d9a2b3eab6cac1ac5&amp;o=" role="presentation" loading="lazy"/></picture></div></div></div><div class="b3d1cacd40 ff12947055"><div data-testid="webcore-carousel-title" class="ac78a73c96 f0d4d6a2f5 fda3b74d0d">Nosy Be</div><div data-testid="webcore-carousel-sub-title" class="db29ecfbe2 c90c0a70d3 a34d1a4138">44 établissements</div></div></div></a></li><li class="d5fc932504 ebb6d69bfc"><a href="https://www.booking.com/destination?aid=304142&amp;label=gen173nr-1FCAEoggI46AdIDVgEaJEBiAECmAENuAEJ0gEHd2Vidmlld9gBAegBAfgBAogCAagCA7gC4_-OpQbAAgHSAiQ2NDVhYjI2Zi1mMDNlLTQ4ZTEtOWVmMC0wMTc5OGYwNWQyMWXYAgXgAgE" class="fc63351294 d408b14665"><div style="--bui_aspect_ratio_padding-top--s:100%" class="d57f52f47d d408b14665"><div class="da627785d6"><div class="bcc2c1529b"><div class="a1b3f50dcd be36d14cea f7c6687c3d db7f07f643 da8cfbe6fc ec8410d621"><div class="dbff21611b">Plus de destinations</div></div></div></div></div></a></li></ul><div class="ec293799a8" style="top:50%"><button aria-label="Précédente" aria-controls=":R2:" type="button" class="fc63351294 a822bdf511 a197a33f25 fa565176a8 f7db01295e c334e6f658 e66ee09c14 b3774fa8b1 d23c616de5"><span class="b9def0936d"><span class="b6dc9a9e69 e25355d3ee" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" data-rtl-flip="true"><path d="M14.55 18a.74.74 0 0 1-.53-.22l-5-5A1.08 1.08 0 0 1 8.7 12a1.1 1.1 0 0 1 .3-.78l5-5a.75.75 0 0 1 1.06 0 .74.74 0 0 1 0 1.06L10.36 12l4.72 4.72a.74.74 0 0 1 0 1.06.73.73 0 0 1-.53.22zm-4.47-5.72zm0-.57z"></path></svg></span></span></button><button aria-label="Suivante" aria-controls=":R2:" type="button" class="fc63351294 a822bdf511 a197a33f25 fa565176a8 f7db01295e c334e6f658 e66ee09c14 b3774fa8b1 d23c616de5"><span class="b9def0936d"><span class="b6dc9a9e69 e25355d3ee" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" data-rtl-flip="true"><path d="M9.45 6c.2 0 .39.078.53.22l5 5c.208.206.323.487.32.78a1.1 1.1 0 0 1-.32.78l-5 5a.75.75 0 0 1-1.06 0 .74.74 0 0 1 0-1.06L13.64 12 8.92 7.28a.74.74 0 0 1 0-1.06.73.73 0 0 1 .53-.22zm4.47 5.72zm0 .57z"></path></svg></span></span></button></div></div></div></div></div></div></div>
+<div data-et-view=" cCHObONdPbIZFbYSfDcfFdHMbNXGDJEBBVYYT:2 ">
+</div>
+<div data-et-view="cCHObOFfdJMYEEWPHDDWe:1"></div>
+<div class="domestic-destinations--wrapper">
+<div data-capla-component="b-index-lp-web-mfe/MerchCarousel/DomesticDestinationsMdot" data-capla-namespace="b-index-lp-web-mfeNTWYGbBI"><div><div data-qmab-component-id="1034" data-testid="merch-carousel" role="none"></div></div></div>
+</div>
+<div data-et-view="customGoal:cCGaYSdMbYSfcdReLbFZVGAZaYYfPHe:1"></div>
+<div data-capla-component="b-index-lp-web-mfe/UniqueStaysProperties" data-capla-namespace="b-index-lp-web-mfeNTWYGbBI"><div><div data-qmab-component-id="1032"></div></div></div>
+<div data-capla-component="b-index-lp-web-mfe/TripTypesCarousel" data-capla-namespace="b-index-lp-web-mfeNTWYGbBI"><div><div data-qmab-component-id="1037"></div></div></div>
+<div data-et-view=" cCHObdRdJSfdQaRNFOSeDCJWMdCDWOOC:1  cCHObdRdJSfdQaRNFOSeDCJWMdCDWOOC:2   "></div>
+<div
+data-qmab-component-id="1016"
+>
+<div data-capla-component="b-index-lp-web-mfe/BHAwarenessBanner" data-capla-namespace="b-index-lp-web-mfeNTWYGbBI"><div><div data-testid="wcu_bh_banner-mobile" class="a826ba81c4 fa2f36ad22 afd256fc79 d08f526e0d ed11e24d01 ef9845d4b3 c3e28461aa" style="--bui_box_padding--s:0"><a target="_isblank" href="https://www.booking.com/booking-home/index.fr.html?aid=304142&amp;label=gen173nr-1FCAEoggI46AdIDVgEaJEBiAECmAENuAEJ0gEHd2Vidmlld9gBAegBAfgBAogCAagCA7gC4_-OpQbAAgHSAiQ2NDVhYjI2Zi1mMDNlLTQ4ZTEtOWVmMC0wMTc5OGYwNWQyMWXYAgXgAgE" class="fc63351294 d42c9579d2"><picture class="e4e8d3238b ce1adcb018"><img class="c3194e6c89 e5eb7fb6cb" src="https://q-xx.bstatic.com/psb/capla/static/media/bh_aw_cpg_main_image.b4347622.png" role="presentation" loading="lazy"/></picture><div class="fdc0eaa3a7"><div data-testid="wcu_bh_banner_mobile--content" class="ac78a73c96 faef87fb98"><div>Trouvez  </div><div class="c3a580d951"><ul class="a2172b8d6f"><li class="db46cc1a0a"><span class="fc7d18e9e4">un appartement</span></li><li class="db46cc1a0a"><span class="fc7d18e9e4">une villa</span></li><li class="db46cc1a0a"><span class="fc7d18e9e4">un appart&#x27;hôtel</span></li><li class="db46cc1a0a"><span class="fc7d18e9e4">une maison de vacances</span></li><li class="db46cc1a0a"><span class="fc7d18e9e4">un cottage</span></li><li class="db46cc1a0a"><span class="fc7d18e9e4">un hébergement indépendant</span></li><li class="db46cc1a0a"><span class="fc7d18e9e4">un appartement</span></li></ul></div><div> pour votre prochain séjour</div></div><span data-testid="wcu_bh_banner_mobile--button" class="fc63351294 a822bdf511 e2b4ffd73d f7db01295e c334e6f658 a9a04704ee d442102055"><span class="e57ffa4eb5">Découvrir les hébergements indépendants</span></span></div></a></div></div></div>
+</div>
+<div data-et-view="OMNNSCZWDBTJXIIUIVBFAPYbIeIPHe:1"></div>
+<div
+data-qmab-component-id="1015"
+class="cross-sell-exposure-point-other-product bui-spacer--large"></div>
+<script nonce="le6bD1nif153eMk">
+(function() {
+if (!window.csxpPoints) window.csxpPoints = new Object();
+window.csxpPoints['ep-trip_different_product-1'] = {
+container: document.querySelector('.cross-sell-exposure-point-other-product'),
+exposurePointData: {
+page: 'BOOKING_HOTEL_INDEX',
+placement_name: 'TRIP_DIFFERENT_PRODUCT',
+reservations: [
+]
+}
+}
+}());
+</script>
+<div data-capla-component="b-index-lp-web-mfe/GeniusSignInBanner" data-capla-namespace="b-index-lp-web-mfeNTWYGbBI"><div class="a8587b2c3c" data-qmab-component-id="1005"><div><section aria-labelledby=":R0:" class="a826ba81c4 fa2f36ad22 afd256fc79 d08f526e0d ed11e24d01 ef9845d4b3 f0650cd68f" style="--bui_box_padding--s:4"><div class="a1b3f50dcd be36d14cea f7c6687c3d"><div class="b8ef7618ca a57ee2799e"><h3 id=":R0:" class="ac78a73c96 cf6551f81f">Connectez-vous et économisez !</h3></div><p class="db29ecfbe2 b2870354c0">Vous êtes déjà membre Genius. Économisez sur votre prochain voyage en vous connectant.</p><div class="db29ecfbe2"><a href="https://www.booking.com/index.html?aid=304142&amp;label=gen173nr-1FCAEoggI46AdIDVgEaJEBiAECmAENuAEJ0gEHd2Vidmlld9gBAegBAfgBAogCAagCA7gC4_-OpQbAAgHSAiQ2NDVhYjI2Zi1mMDNlLTQ4ZTEtOWVmMC0wMTc5OGYwNWQyMWXYAgXgAgE&amp;login_redirect=https%3A%2F%2Fwww.booking.com%2Findex.fr.html" class="fc63351294 a822bdf511 d4b6b7a9e7 f7db01295e c334e6f658 f4605622ad ce8944f861"><span class="e57ffa4eb5">Se connecter</span></a><span role="img" class="b6dc9a9e69 b54c163101 e6c50852bd" aria-label="logo bleu Genius"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 121 32"><g fill="none"><path fill="#fff" d="m115.546514 25.2308571c0 .6226286-.299657 1.1181715-.905828 1.4864-.602743.3650286-1.398857.5492572-2.381257.5492572-1.1824 0-2.194743-.2813714-3.037486-.8470857-.842514-.5659429-1.432-1.2857143-1.771886-2.1629715-.1664-.4219428-.462857-.5357714-.885714-.3380571l-3.204114 1.4395429c-.4496.2009142-.576.5090285-.379658.9341714.646172 1.5837714 1.765258 2.8893714 3.353829 3.9206857 1.5888 1.0310857 3.603657 1.5467429 6.051657 1.5467429 2.361143 0 4.356114-.6059429 5.988114-1.8212572 1.628572-1.2153143 2.444572-2.8694857 2.444572-4.9586286 0-3.4485257-2.417829-5.58464-7.253714-6.4015771-1.771886-.31136-3.040915-.6595657-3.816915-1.0378971-.772571-.3816915-1.158857-.8705143-1.158857-1.4631315 0-.5089143.303086-.9140343.905829-1.2086628.606171-.2979886 1.415543-.4453029 2.424685-.4453029 1.631772 0 3.050743.6361372 4.259658 1.9084114.336228.3381715.676114.3816915 1.012342.1272458l2.278172-2.11936c.392914-.3113829.436343-.6528915.126628-1.0178286-1.771885-2.1762743-4.373028-3.2644114-7.803428-3.2644114-2.444572 0-4.399543.5591314-5.858286 1.6740571-1.462171 1.1149257-2.194743 2.6215771-2.194743 4.5132571 0 1.5836572.582629 2.9061486 1.751772 3.96416 1.165714 1.0613486 2.747657 1.7744915 4.742628 2.1427886 1.968229.36496 3.343772.7601372 4.133029 1.18528.786057.4251429 1.178971.9876572 1.178971 1.6941714z"></path><path fill="#fff" d="m82.0909714 23.7168c0 2.5412571.6893715 4.5433143 2.0649143 5.9965714 1.3787429 1.4562286 3.2473143 2.1828572 5.6086857 2.1828572.8992 0 1.7218286-.1204572 2.4678857-.3581715.7458286-.2411428 1.3220572-.5024 1.7284572-.7869714.4061714-.2811428.8925714-.6761143 1.4553143-1.1851428l.5062857 1.2288c.1666286.3949714.4930286.5926857.9691428.5926857h3.4571429c.4496 0 .676114-.2244572.676114-.6763429v-19.2885714c0-.4519772-.226514-.6796572-.676114-.6796572h-4.2596571c-.4496 0-.6729143.22768-.6729143.6796572v13.1413714c-1.0690286 1.5536-2.4745143 2.3302857-4.2162286 2.3302857-1.0957714 0-1.9483429-.3515428-2.5513143-1.0580571-.6061714-.7065143-.9058286-1.6404572-.9058286-2.7990857v-11.6145143c0-.4519772-.2397714-.6796572-.7193142-.6796572h-4.2164572c-.4763428 0-.7161143.22768-.7161143.6796572z"></path><path fill="#febb02" d="m72.7899429 4.10043429c0 1.10098285.3952 2.04852571 1.1890285 2.84262857.7940572.79026285 1.7414857 1.18923428 2.8425143 1.18923428 1.1008 0 2.0482286-.39897143 2.8422857-1.18923428.7901715-.79410286 1.1890286-1.74164572 1.1890286-2.84262857 0-1.10100572-.3988571-2.048544-1.1890286-2.84264-.7940571-.794096-1.7414857-1.1892256-2.8422857-1.1892256-1.1010286 0-2.0484571.3951296-2.8425143 1.1892256-.7938285.794096-1.1890285 1.74163428-1.1890285 2.84264z"></path><g fill="#fff"><path d="m74.0096 30.5380571c0 .4518858.2365714.6763429.7161143.6763429h4.2162286c.4797714 0 .7161142-.2244571.7161142-.6763429v-19.2885028c0-.452-.2363428-.67968-.7161142-.67968h-4.2162286c-.4795429 0-.7161143.22768-.7161143.67968z"></path><path d="m71.7677714 17.4330286c0-2.3470172-.6395428-4.1616915-1.9184-5.4473829-1.2788571-1.2856686-3.1008-1.9285028-5.4619428-1.9285028-2.1348572 0-4.1033143.7901485-5.9017143 2.3738057l-.5494857-1.1885715c-.1398857-.4218742-.4496-.6361371-.9259429-.6361371h-3.4603428c-.4763429 0-.7161143.2276571-.7161143.6796571v19.2885029c0 .4518857.2397714.6763429.7161143.6763429h4.2164571c.4795429 0 .7193143-.2244572.7193143-.6763429v-13.1848914c.4196571-.5658286 1.0258286-1.0881372 1.8118857-1.5669257.7858286-.4821258 1.5753143-.7231772 2.3611429-.7231772 2.3346285 0 3.5003428 1.2722743 3.5003428 3.8168457v11.6581486c0 .4518857.2265143.6763429.6761143.6763429h4.2564571c.4496 0 .6761143-.2244572.6761143-.6763429z"></path><path d="m50.9942857 21.7554514c0 .452-.2233143.6796572-.6729143.6796572h-14.5074285c.3097142 1.2990628.9225142 2.3436343 1.8349714 3.1372343.9126857.7901714 2.0749714 1.1851428 3.4804571 1.1851428 1.9115429 0 3.3702857-.7901714 4.3828572-2.3737143.1698285-.2544.4363428-.2946285.8027428-.1273143l3.6267429 1.5268572c.4196571.1405714.5195428.3949714.2930286.7632-2.0514286 3.4754286-5.0854858 5.2130286-9.1053715 5.2130286-3.0374857 0-5.6153143-1.0178286-7.7401143-3.0500572-2.1216-2.0356571-3.184-4.6372571-3.184-7.80112 0-3.1639543 1.0557715-5.76544 3.1641143-7.8010971 2.1081143-2.0322972 4.5958857-3.0501257 7.4635429-3.0501257 3.1773714 0 5.6651428.9810057 7.4635428 2.9463314 1.7986286 1.9620114 2.6978286 4.4295543 2.6978286 7.3959771zm-6.9974857-5.9127771c-.9024-.6629257-1.9549714-.9943772-3.1638857-.9943772-1.2356572 0-2.2713143.31472-3.1008.9508572-.8292572.6361371-1.4253714 1.4631314-1.7917714 2.48096h9.6985142c-.1965714-.9609143-.7428571-1.7745143-1.6420571-2.43744z"></path><path d="m28.3577143 26.8957714c0 .4032-.1746286.7794286-.4905143 1.0416-2.9492571 2.3581715-6.792 3.7826286-10.9774171 3.7826286-9.30468576 0-16.85591021-7.0548571-16.85591021-15.7423314 0-8.69426289 7.55122445-15.9776686 16.85591021-15.9776686 4.1786971 0 8.0080457 1.42440686 10.9506742 3.78274286.1410286.11421714.2283429.27547428.2418286.45017143.0201143.18139428-.0336.35609142-.1478857.49718857-.7524571.90704-2.3177143 2.79506285-3.0902857 3.72226285-.1142857.14109715-.2822857.22845715-.4635429.24187429-.1814857.01344-.3561143-.04701714-.4905143-.16123429-1.8541485-1.57222857-4.3062857-2.52630857-7.0002742-2.52630857-5.7574858 0-10.42660576 4.59583996-10.42660576 9.97097146 0 5.3751085 4.66911996 9.7423314 10.42660576 9.7423314 2.2371428 0 4.3063542-.6582857 6.0059885-1.7803429v-4.3539428s-3.4396571 0-4.9310857 0c-.1746743 0-.3493486-.0672-.4769828-.1948572-.1209372-.1276571-.1948343-.2956342-.1948343-.4770285 0-1.06832 0-3.1511772 0-4.2194743 0-.1814172.0738971-.3493714.1948343-.4770514.1276342-.1209372.3023085-.1948343.4769828-.1948343h9.7212572c.3693714 0 .6717714.3023543.6717714.6718857z"></path></g></g></svg></span></div></div></section></div></div></div>
+<div
+data-qmab-component-id="1001"
+class="index-usps bui-spacer--large"
+style="min-height:1px">
+<div class="bui-banner index_usps-bui index_usps-bui_1 bui-u-bleed-container" data-bui-component="Banner">
+<svg class="bk-icon -iconset-checkmark_dot_bold bui-banner__icon" height="34" role="presentation" width="34"><use xlink:href="#icon-iconset-checkmark_dot_bold"></use></svg>
+<div class="bui-banner__content">
+<h2 class="bui-banner__title u-padding-top:0 u-padding-left:0">Réservez maintenant et PAYEZ SUR PLACE</h2>
+<p class="bui-banner__text">Annulation GRATUITE sur la majorité des chambres</p>
+</div>
+</div>
+<div class="bui-banner index_usps-bui bui-u-bleed-container" data-bui-component="Banner">
+<svg class="bk-icon -iconset-checkmark_dot_bold bui-banner__icon" height="34" role="presentation" width="34"><use xlink:href="#icon-iconset-checkmark_dot_bold"></use></svg>
+<div class="bui-banner__content">
+<h2 class="bui-banner__title u-padding-top:0 u-padding-left:0">2 563 380 établissements dans 228 pays</h2>
+<p class="bui-banner__text">Hôtels, maisons d'hôtes, motels, etc.</p>
+</div>
+</div>
+</div>
+<script type="application/ld+json" nonce="le6bD1nif153eMk">
+{
+"@context": "http://schema.org",
+"@type": "WebSite",
+"url": "https://www.booking.com/",
+"potentialAction": {
+"@type": "SearchAction",
+"target": "https://www.booking.com/searchresults.html?aid=800210&si=ai,ci,co,di,la,re&ss={search_term_string}",
+"query-input": "required name=search_term_string"
+}
+}
+</script>
+</div>
+</div>
+<div class="tabbed-nav--content tabbed-nav--content__signin"
+data-tab-id="signin"
+role="dialog"
+aria-label="Réservez plus rapidement en vous connectant"
+aria-modal="true"
+aria-expanded="false"
+data-async-content
+aria-live="polite"
+id="tabbed_signin"
+tabindex="0">
+<div class="tabbed-nav--loader"></div>
+<div class="async-signin-retry async-signin-retry__hidden">
+<h3 class="async-signin-retry__heading">Une erreur s'est produite. <br>Veuillez réessayer.</h3>
+<button class="bui-button bui-button--primary js-login-retry" type="button">
+<span class="bui-button__icon">
+<svg class="bk-icon -iconset-update" height="16" width="16"><use xlink:href="#icon-iconset-update"></use></svg>
+</span>
+<span class="bui-button__text">Recommencer</span>
+</button>
+</div>
+</div>
+<div
+class="tabbed-nav--content tabbed-nav--content__menu svg-menu "
+data-tab-id="menu"
+id="tabbed_menu"
+role="dialog"
+aria-label="PARAMÈTRES"
+aria-describedby="tabbed_nav_menu_description"
+aria-modal="true"
+aria-expanded="false"
+data-async-content
+aria-live="polite"
+tabindex="0"
+>
+<span class="bui-u-sr-only" id="tabbed_nav_menu_description">PARAMÈTRES, PROFIL, LIENS UTILES</span>
+<div class="site-nav">
+<div class="tabbed-nav--loader"></div>
+</div>
+</div>
+<div class="sliding-view__wrapper tt-panel"
+data-id="explore_beaches_panel"
+id="explore_beaches_panel"
+style="display:none;"
+>
+<div class="sliding-view__header">
+<button type="button" class="sliding-view__close" aria-label="Go back" data-no-focus-ring="true" data-close-button="">
+<svg class="bk-icon -iconset-arrow_left sliding-view__icon-back" fill="#6B6B6B" height="24" width="24"><use xlink:href="#icon-iconset-arrow_left"></use></svg>
+<svg class="bk-icon -iconset-close sliding-view__icon-close" fill="#6B6B6B" height="24" width="24"><use xlink:href="#icon-iconset-close"></use></svg>
+</button>
+<div class="sliding-view__title"></div>
+</div>
+</div> <!-- /.sliding-view__wrapper -->
+<footer class="site-footer js-site-footer css-loading-hidden hide-footer-menu-tab"
+data-et-view="
+  goal:mdot_index_full_page_scroll   TZUfCDWOORFOFVfEeSHYSJeRT:2  "
+>
+<a href="https:&#47;&#47;www.booking.com&#47;apps.fr.html?label=gen173nr-1FCAEoggI46AdIDVgEaJEBiAECmAENuAEJ0gEHd2Vidmlld9gBAegBAfgBAogCAagCA7gC4_-OpQbAAgHSAiQ2NDVhYjI2Zi1mMDNlLTQ4ZTEtOWVmMC0wMTc5OGYwNWQyMWXYAgXgAgE&amp;sid=e3d5820e0a17932d2ad5b9150bca4408&amp;app_install=1&amp;lang=fr&amp;site=mdot&amp;page=index&amp;placement=GeneralFooterAndroid&amp;device=direct&amp;etseed=52616e646f6d49562473646523287d61fcc0c8bd0eae66da0da5f3fb9d452d6f763257b3a51df929ae652bf9bd8a8a99635ac349e64c5d3c814efb3226e9e0eb&amp;room1=A,A,;"
+target="_blank"
+class="
+        
+            appacq-banner-rating
+            gta-banner-link
+            gta-link-track
+            footer-banner-common
+          
+    "
+data-placement="GeneralFooterAndroid"
+data-event-label="android"
+data-track-event="android_footer_app_link_v1"
+aria-label="T&eacute;l&eacute;chargez l&#39;appli GRATUITE"
+aria-describedby="app-banner-desc"
+data-et-click="customGoal:cCHObTRVDEZRdPQBcGCfTKYCcZeKe:2 goal:mdot_download_app_click"
+data-et-view="dLYHMRFeRLBBVYUTDXbEaBVLCBLREHGC:3"
+>
+<div class="app-icon">
+<img src="https://cf.bstatic.com/mobile/images/gta/booking-app-logo-128/8c0a29a0f8657ad4d395e725225770a6d2b7904c.png" alt="Booking">
+</div>
+<div class="app-info">
+<div id="truncate-title" class="bui-text bui-text--color-neutral bui-text--variant-strong_2">Téléchargez l'appli GRATUITE</div>
+<div class="app-rating">
+<div class="app-rating-stars">
+<svg aria-hidden="true" class="bk-icon -sprite-ratings_stars_4_half" focusable="false" height="13" width="69"><use xlink:href="#icon-sprite-ratings_stars_4_half"></use></svg>
+<span class="u-sr-only">Note de 4.5 étoiles sur 5 </span>
+</div>
+</div>
+<div class="app-sub">
+<div class="bui-text bui-text--color-neutral bui-text--variant-small_1" id="app-banner-desc">
+Recherchez, réservez et gérez vos séjours sur l'appli
+</div>
+</div>
+</div>
+<div class="app-get">
+<button
+id="track-get-button"
+class="bui-button"
+type="button"
+data-et-click="customGoal:dLYHMRFeRLBBVYUTDXbEaBVLCBLREHGC:1"
+data-ga4-track="app_download_footer"
+>
+<span class="bui-button__text">
+Installer
+</span>
+</button>
+</div>
+</a>
+<div
+class="u-background-color:navy_blue u-color:white u-font-size:12 u-text-align:center site-footer__join site-footer__join-buttons u-padding:15"
+>
+<div data-et-view="HCZVfDaYHZeKGTafWe:1"></div>
+<a
+class="bui-button bui-button--secondary"
+rel="nofollow"
+data-ga="Joinapp_link"
+target="_blank"
+data-et-click=" customGoal:HCZVfDaYHZeKGTafWe:1 customGoal:cCHObTRVDEZRdPQBcGCfTKYCcZeKe:4 customGoal:YTTHbXeeVLCBLfZUTPCDWOOC:1 goal:mdot_list_proproperty_footer_click "
+data-et-view="HCZEZUaNZIUONSFTUQODZEYTYeYINXGET:5"
+href="https://join.booking.com?utm_source=mobilefooter&amp;utm_medium=frontend&amp;aid=304142&amp;lang=fr&amp;mdot_footer_add_prop=1&amp;contact_details=&amp;new_pg=1&amp;label=gen173nr-1FCAEoggI46AdIDVgEaJEBiAECmAENuAEJ0gEHd2Vidmlld9gBAegBAfgBAogCAagCA7gC4_-OpQbAAgHSAiQ2NDVhYjI2Zi1mMDNlLTQ4ZTEtOWVmMC0wMTc5OGYwNWQyMWXYAgXgAgE"
+>
+<span class="bui-button__text">
+Ajoutez votre &eacute;tablissement
+</span>
+</a>
+</div>
+<div class="u-background-color:navy_blue u-color:white u-font-size:12 u-padding:20 u-text-align:center">
+<div
+class="site-footer__legal u-padding-bottom:20"
+>
+<a
+rel="nofollow"
+class="u-display:inline-block u-color:white u-padding:5 u-font-weight:bold"
+href="https://www.booking.com/index.fr.html?prefer_site_type=www"
+>
+Version ordinateur
+</a>
+<a class="u-display:inline-block u-color:white u-padding:5 u-font-weight:bold" rel="nofollow" href="/content/terms.fr.html?label=gen173nr-1FCAEoggI46AdIDVgEaJEBiAECmAENuAEJ0gEHd2Vidmlld9gBAegBAfgBAogCAagCA7gC4_-OpQbAAgHSAiQ2NDVhYjI2Zi1mMDNlLTQ4ZTEtOWVmMC0wMTc5OGYwNWQyMWXYAgXgAgE&sid=e3d5820e0a17932d2ad5b9150bca4408&amp;new_pg=1"
+>Conditions générales d&#39;utilisation</a>
+<a class="u-display:inline-block u-color:white u-padding:5 u-font-weight:bold" rel="nofollow" href="/content/how_we_work.fr.html?label=gen173nr-1FCAEoggI46AdIDVgEaJEBiAECmAENuAEJ0gEHd2Vidmlld9gBAegBAfgBAogCAagCA7gC4_-OpQbAAgHSAiQ2NDVhYjI2Zi1mMDNlLTQ4ZTEtOWVmMC0wMTc5OGYwNWQyMWXYAgXgAgE&sid=e3d5820e0a17932d2ad5b9150bca4408&amp;new_pg=1"
+target="_blank"
+>Fonctionnement de notre site</a>
+<a class="u-display:inline-block u-color:white u-padding:5 u-font-weight:bold" rel="nofollow" href="https://www.booking.com/content/privacy.fr.html?label=gen173nr-1FCAEoggI46AdIDVgEaJEBiAECmAENuAEJ0gEHd2Vidmlld9gBAegBAfgBAogCAagCA7gC4_-OpQbAAgHSAiQ2NDVhYjI2Zi1mMDNlLTQ4ZTEtOWVmMC0wMTc5OGYwNWQyMWXYAgXgAgE&sid=e3d5820e0a17932d2ad5b9150bca4408&amp;new_pg=1"
+>Confidentialité et Cookies</a>
+<a class="u-display:inline-block u-color:white u-padding:5 u-font-weight:bold"
+rel="nofollow"
+href="https://www.bookingholdings.com/about/compliance-and-ethics/"
+target="_blank"
+>Charte MSA</a>
+<a class="u-display:inline-block u-color:white u-padding:5 u-font-weight:bold" rel="nofollow" href="https://www.booking.com/general.fr.html?label=gen173nr-1FCAEoggI46AdIDVgEaJEBiAECmAENuAEJ0gEHd2Vidmlld9gBAegBAfgBAogCAagCA7gC4_-OpQbAAgHSAiQ2NDVhYjI2Zi1mMDNlLTQ4ZTEtOWVmMC0wMTc5OGYwNWQyMWXYAgXgAgE&sid=e3d5820e0a17932d2ad5b9150bca4408&amp;tmpl=docs/about;bk_ft_about=0&amp;new_pg=1" 
+>
+À propos de Booking.com
+</a>
+</div>
+<div class="site-footer__copyright u-padding-bottom:20">
+Copyright &copy; 1996&ndash;2023 Booking.com&trade;. Tous droits réservés.
+</div>
+<div class="site-footer__reference">
+Votre référence (ID) : <strong class="u-font-weight:bold">E3D5820</strong>
+</div>
+<div class="site-footer__meta u-margin-top:10">
+<a
+href="#site-footer__meta-links"
+class=" u-padding:5 u-color:white u-font-weight:normal "
+data-toggle="true"
+data-toggle-target=".site-footer__meta-links"
+data-et-click=" BHDTJdReLLCBLZBeMbFMOFIbeDUHYKe:1 BHDTJdReLLCBLZBeMbFMOFIbeDUHYKe:5 "
+>Plan du site</a>
+<div id="site-footer__meta-links" class="site-footer__meta-links inactive">
+<a class=" u-display:inline-block u-padding:5 u-color:white u-font-weight:normal "
+href="https://www.booking.com/discover.fr.html"
+>Découvrir des destinations</a>
+<a class=" u-display:inline-block u-padding:5 u-color:white u-font-weight:normal "
+href="https://www.booking.com/destination.fr.html"
+>Répertoire de pays</a>
+<a class=" u-display:inline-block u-padding:5 u-color:white u-font-weight:normal "
+href="https://www.booking.com/hotel/index.fr.html?label=gen173nr-1FCAEoggI46AdIDVgEaJEBiAECmAENuAEJ0gEHd2Vidmlld9gBAegBAfgBAogCAagCA7gC4_-OpQbAAgHSAiQ2NDVhYjI2Zi1mMDNlLTQ4ZTEtOWVmMC0wMTc5OGYwNWQyMWXYAgXgAgE&sid=e3d5820e0a17932d2ad5b9150bca4408"
+>Hôtels</a>
+<a
+class=" u-display:inline-block u-padding:5 u-color:white u-font-weight:normal "
+href="/apartments/index.fr.html?label=gen173nr-1FCAEoggI46AdIDVgEaJEBiAECmAENuAEJ0gEHd2Vidmlld9gBAegBAfgBAogCAagCA7gC4_-OpQbAAgHSAiQ2NDVhYjI2Zi1mMDNlLTQ4ZTEtOWVmMC0wMTc5OGYwNWQyMWXYAgXgAgE&sid=e3d5820e0a17932d2ad5b9150bca4408"
+>Appartements
+</a>
+<a
+class=" u-display:inline-block u-padding:5 u-color:white u-font-weight:normal "
+href="/resorts/index.fr.html?label=gen173nr-1FCAEoggI46AdIDVgEaJEBiAECmAENuAEJ0gEHd2Vidmlld9gBAegBAfgBAogCAagCA7gC4_-OpQbAAgHSAiQ2NDVhYjI2Zi1mMDNlLTQ4ZTEtOWVmMC0wMTc5OGYwNWQyMWXYAgXgAgE&sid=e3d5820e0a17932d2ad5b9150bca4408"
+>Complexes hôteliers
+</a>
+<a
+class=" u-display:inline-block u-padding:5 u-color:white u-font-weight:normal "
+href="/motels/index.fr.html?label=gen173nr-1FCAEoggI46AdIDVgEaJEBiAECmAENuAEJ0gEHd2Vidmlld9gBAegBAfgBAogCAagCA7gC4_-OpQbAAgHSAiQ2NDVhYjI2Zi1mMDNlLTQ4ZTEtOWVmMC0wMTc5OGYwNWQyMWXYAgXgAgE&sid=e3d5820e0a17932d2ad5b9150bca4408"
+>Motels
+</a>
+<a
+class=" u-display:inline-block u-padding:5 u-color:white u-font-weight:normal "
+href="/booking-home/index.fr.html?label=gen173nr-1FCAEoggI46AdIDVgEaJEBiAECmAENuAEJ0gEHd2Vidmlld9gBAegBAfgBAogCAagCA7gC4_-OpQbAAgHSAiQ2NDVhYjI2Zi1mMDNlLTQ4ZTEtOWVmMC0wMTc5OGYwNWQyMWXYAgXgAgE&sid=e3d5820e0a17932d2ad5b9150bca4408"
+>Locations de vacances
+</a>
+<a
+class=" u-display:inline-block u-padding:5 u-color:white u-font-weight:normal "
+href="/pets/index.fr.html?label=gen173nr-1FCAEoggI46AdIDVgEaJEBiAECmAENuAEJ0gEHd2Vidmlld9gBAegBAfgBAogCAagCA7gC4_-OpQbAAgHSAiQ2NDVhYjI2Zi1mMDNlLTQ4ZTEtOWVmMC0wMTc5OGYwNWQyMWXYAgXgAgE&sid=e3d5820e0a17932d2ad5b9150bca4408"
+>Hôtels acceptant les animaux domestiques
+</a>
+<a
+class=" u-display:inline-block u-padding:5 u-color:white u-font-weight:normal "
+href="/spa/index.fr.html?label=gen173nr-1FCAEoggI46AdIDVgEaJEBiAECmAENuAEJ0gEHd2Vidmlld9gBAegBAfgBAogCAagCA7gC4_-OpQbAAgHSAiQ2NDVhYjI2Zi1mMDNlLTQ4ZTEtOWVmMC0wMTc5OGYwNWQyMWXYAgXgAgE&sid=e3d5820e0a17932d2ad5b9150bca4408"
+>Hôtels &amp; spas
+</a>
+<a
+class=" u-display:inline-block u-padding:5 u-color:white u-font-weight:normal "
+href="/luxury/index.fr.html?label=gen173nr-1FCAEoggI46AdIDVgEaJEBiAECmAENuAEJ0gEHd2Vidmlld9gBAegBAfgBAogCAagCA7gC4_-OpQbAAgHSAiQ2NDVhYjI2Zi1mMDNlLTQ4ZTEtOWVmMC0wMTc5OGYwNWQyMWXYAgXgAgE&sid=e3d5820e0a17932d2ad5b9150bca4408"
+>Hôtels de luxe
+</a>
+<a
+class=" u-display:inline-block u-padding:5 u-color:white u-font-weight:normal "
+href="/reviews.fr.html?label=gen173nr-1FCAEoggI46AdIDVgEaJEBiAECmAENuAEJ0gEHd2Vidmlld9gBAegBAfgBAogCAagCA7gC4_-OpQbAAgHSAiQ2NDVhYjI2Zi1mMDNlLTQ4ZTEtOWVmMC0wMTc5OGYwNWQyMWXYAgXgAgE&sid=e3d5820e0a17932d2ad5b9150bca4408"
+>Commentaires
+</a>
+<a
+class=" u-display:inline-block u-padding:5 u-color:white u-font-weight:normal "
+href="/articles.fr.html?label=gen173nr-1FCAEoggI46AdIDVgEaJEBiAECmAENuAEJ0gEHd2Vidmlld9gBAegBAfgBAogCAagCA7gC4_-OpQbAAgHSAiQ2NDVhYjI2Zi1mMDNlLTQ4ZTEtOWVmMC0wMTc5OGYwNWQyMWXYAgXgAgE&sid=e3d5820e0a17932d2ad5b9150bca4408"
+>Articles
+</a>
+<a
+class=" u-display:inline-block u-padding:5 u-color:white u-font-weight:normal "
+href="/extended-stays/index.fr.html?label=gen173nr-1FCAEoggI46AdIDVgEaJEBiAECmAENuAEJ0gEHd2Vidmlld9gBAegBAfgBAogCAagCA7gC4_-OpQbAAgHSAiQ2NDVhYjI2Zi1mMDNlLTQ4ZTEtOWVmMC0wMTc5OGYwNWQyMWXYAgXgAgE&sid=e3d5820e0a17932d2ad5b9150bca4408"
+>Découvrir les séjours au mois
+</a>
+<a
+class=" u-display:inline-block u-padding:5 u-color:white u-font-weight:normal "
+href="/destination.fr.html?label=gen173nr-1FCAEoggI46AdIDVgEaJEBiAECmAENuAEJ0gEHd2Vidmlld9gBAegBAfgBAogCAagCA7gC4_-OpQbAAgHSAiQ2NDVhYjI2Zi1mMDNlLTQ4ZTEtOWVmMC0wMTc5OGYwNWQyMWXYAgXgAgE&sid=e3d5820e0a17932d2ad5b9150bca4408"
+>Toutes les destinations
+</a>
+<a
+class=" u-display:inline-block u-padding:5 u-color:white u-font-weight:normal "
+href="/flights/sitemap.fr.html?label=gen173nr-1FCAEoggI46AdIDVgEaJEBiAECmAENuAEJ0gEHd2Vidmlld9gBAegBAfgBAogCAagCA7gC4_-OpQbAAgHSAiQ2NDVhYjI2Zi1mMDNlLTQ4ZTEtOWVmMC0wMTc5OGYwNWQyMWXYAgXgAgE&sid=e3d5820e0a17932d2ad5b9150bca4408"
+>Toutes les destinations des vols
+
